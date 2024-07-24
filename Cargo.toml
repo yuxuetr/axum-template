@@ -1,0 +1,13 @@
+[package]
+name = "axum-template"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+
+[dependencies]
+anyhow = "1.0.86"
+
+[build-dependencies]
+anyhow = "1.0.86"
+jwt-simple = "0.12.9"
