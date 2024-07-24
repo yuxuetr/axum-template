@@ -1,4 +1,4 @@
-# Rust 项目初始化模版
+# Rust Axum Web应用通用化模版
 
 ## 环境设置
 
@@ -34,10 +34,10 @@ cargo generate 是一个用于生成项目模板的工具。它可以使用已�
 cargo install cargo-generate
 ```
 
-在新的项目会使用 `yuxuetr/rust-template` 模版生成基本的代码：
+在新的项目会使用 `yuxuetr/axum-template` 模版生成基本的代码：
 
 ```bash
-cargo generate yuxuetr/rust-template
+cargo generate yuxuetr/axum-template
 ```
 
 ### 安装 pre-commit
@@ -73,11 +73,6 @@ git cliff 是一个生成 changelog 的工具。
 ```bash
 cargo install git-cliff
 ```
-
-此操作是在Github Actions中完成。
-在本项目模版中的Github Actions(`.github/workflows/build.yml`)配置触发Github Actions的分支是
-main分支，触发生成`CHANGELOG.md`是需要提交`tag`时触发，也就是提交tag版本时会触发，如果需要
-设置每次提交main分支触发，则删掉`if: startsWith(github.ref, 'refs/tags/')`
 
 ### 安装 cargo nextest
 
