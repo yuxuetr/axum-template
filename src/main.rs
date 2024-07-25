@@ -1,6 +1,9 @@
+use axum_template::AppState;
+
 use anyhow::Result;
 
-fn main() -> Result<()> {
-  println!("Hello Axum");
+#[tokio::main]
+async fn main() -> Result<()> {
+  let _state = AppState::init_state().await?;
   Ok(())
 }

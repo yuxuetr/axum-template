@@ -1,0 +1,12 @@
+server:
+  port: 3009
+
+database:
+  db_url: "postgres://postgres:postgres@localhost/example"
+
+auth:
+  secret_key: "fixtures/private_key.pem"
+  public_key: "fixtures/public_key.pem"
+  jwt_duration: 86400 # 24 hours
+  jwt_iss: "my_service"
+  jwt_aud: "my_app"

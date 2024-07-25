@@ -7,6 +7,12 @@ license = "MIT"
 
 [dependencies]
 anyhow = "1.0.86"
+async-trait = "0.1.81"
+bcrypt = "0.15.1"
+serde = { version = "1.0.204", features = ["derive"] }
+serde_yaml = "0.9.34"
+sqlx = { version = "0.8.0", features = ["chrono", "postgres", "runtime-tokio", "tls-rustls"] }
+tokio = { version = "1.37.0", features = ["rt", "rt-multi-thread", "macros"] }
 
 [build-dependencies]
 anyhow = "1.0.86"
