@@ -3,19 +3,19 @@ use std::fs::read_to_string;
 use serde::Deserialize;
 
 #[allow(unused)]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ServerConfig {
-  port: u16,
+  pub port: u16,
 }
 
 #[allow(unused)]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct DatabaseConfig {
   pub db_url: String,
 }
 
 #[allow(unused)]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct AuthConfig {
   pub secret_key: String,
   pub public_key: String,
@@ -25,7 +25,7 @@ pub struct AuthConfig {
 }
 
 #[allow(unused)]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct AppConfig {
   pub server: ServerConfig,
   pub database: DatabaseConfig,

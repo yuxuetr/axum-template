@@ -1,0 +1,23 @@
+### create a user
+POST http://localhost:3009/users
+Content-Type: application/json
+
+{
+	"username": "JohnDoe222",
+	"password": "123456"
+}
+
+### get user by id
+GET http://localhost:3009/users/1
+
+### get all users
+GET http://localhost:3009/users?limit=10&offset=0
+
+### update user by id
+PUT http://localhost:3009/users/1
+Content-Type: application/json
+
+{
+	"username": "JohnDoe11111",
+	"password": "123456"
+}

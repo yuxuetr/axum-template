@@ -8,11 +8,16 @@ license = "MIT"
 [dependencies]
 anyhow = "1.0.86"
 async-trait = "0.1.81"
+axum = { version = "0.7.5", features = ["query", "http2", "tracing", "multipart"] }
 bcrypt = "0.15.1"
+chrono = { version = "0.4.38", features = ["serde"] }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_yaml = "0.9.34"
 sqlx = { version = "0.8.0", features = ["chrono", "postgres", "runtime-tokio", "tls-rustls"] }
+thiserror = "1.0.63"
 tokio = { version = "1.37.0", features = ["rt", "rt-multi-thread", "macros"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [build-dependencies]
 anyhow = "1.0.86"
