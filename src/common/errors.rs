@@ -28,6 +28,12 @@ pub enum AppError {
 
   #[error("validation error: {0}")]
   ValidationError(String),
+
+  #[error("password hash error: {0}")]
+  PasswordHashError(#[from] argon2::password_hash::Error),
+
+  #[error("sql error: {0}")]
+  SqlxError(#[from] sqlx::Error),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -45,6 +51,8 @@ impl IntoResponse for AppError {
       Self::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
       Self::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
       Self::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+      Self::PasswordHashError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+      Self::SqlxError(_) => StatusCode::UNPROCESSABLE_ENTITY,
     };
 
     (status, Json(ErrorOutput::new(self.to_string()))).into_response()

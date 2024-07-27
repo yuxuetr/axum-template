@@ -1,24 +1,28 @@
 [package]
-name = "axum-template"
-version = "0.1.0"
 edition = "2021"
 license = "MIT"
-
+name = "axum-template"
+version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.86"
+argon2 = {version = "0.5.3", features = ["std"]}
 async-trait = "0.1.81"
-axum = { version = "0.7.5", features = ["query", "http2", "tracing", "multipart"] }
+axum = {version = "0.7.5", features = ["query", "http2", "tracing", "multipart"]}
 bcrypt = "0.15.1"
-chrono = { version = "0.4.38", features = ["serde"] }
-serde = { version = "1.0.204", features = ["derive"] }
+chrono = {version = "0.4.38", features = ["serde"]}
+serde = {version = "1.0.204", features = ["derive"]}
 serde_yaml = "0.9.34"
-sqlx = { version = "0.8.0", features = ["chrono", "postgres", "runtime-tokio", "tls-rustls"] }
+sqlx = {version = "0.7", features = ["chrono", "postgres", "runtime-tokio", "tls-rustls"]}
 thiserror = "1.0.63"
-tokio = { version = "1.37.0", features = ["rt", "rt-multi-thread", "macros"] }
+tokio = {version = "1.37.0", features = ["rt", "rt-multi-thread", "macros"]}
 tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-subscriber = {version = "0.3.18", features = ["env-filter"]}
 
 [build-dependencies]
 anyhow = "1.0.86"
 jwt-simple = "0.12.9"
+
+[dev-dependencies]
+# NOTICE: sqlx-db-tester only support sqlx 0.7.*, not support 0.8.*, 2024/7/25
+sqlx-db-tester = {version = "0.4.2"}

@@ -1,13 +1,16 @@
 pub mod dto;
 pub mod entity;
 pub mod handlers;
-mod services;
+pub mod services;
+pub mod tests;
 
 pub use dto::{CreateUser, PaginationParams, UpdateUser};
+pub use entity::User;
 pub use handlers::{
   create_user_handler, delete_user_handler, get_user_handler, get_users_handler,
   update_user_handler,
 };
+pub use services::*;
 
 use crate::AppState;
 
