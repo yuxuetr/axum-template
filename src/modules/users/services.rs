@@ -88,10 +88,17 @@ impl AppState {
       "#,
     )
     .bind(user_id)
-    .fetch_one(&self.pool)
+    .fetch_optional(&self.pool)
     .await
     .map_err(|err| AppError::DatabaseError(err.to_string()))?;
-    Ok(user)
+
+    match user {
+      Some(user) => Ok(user),
+      None => Err(AppError::NotFound(format!(
+        "User with id {} not found",
+        user_id
+      ))),
+    }
   }
 
   pub async fn get_users(&self, limit: i64, offset: i64) -> Result<PaginatedUsers, AppError> {

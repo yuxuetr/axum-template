@@ -4,8 +4,8 @@ use sqlx::PgPool;
 use std::ops::Deref;
 use std::sync::Arc;
 
-mod common;
-mod modules;
+pub mod common;
+pub mod modules;
 pub use common::config::AppConfig;
 pub use common::errors::AppError;
 pub use modules::users::*;

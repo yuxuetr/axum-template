@@ -10,11 +10,14 @@ Content-Type: application/json
 ### get user by id
 GET http://localhost:3009/users/1
 
+### get user by id, but user not found
+GET http://localhost:3009/users/200
+
 ### get all users
 GET http://localhost:3009/users?limit=10&offset=0
 
 ### update user by id
-PUT http://localhost:3009/users/1
+PATCH http://localhost:3009/users/1
 Content-Type: application/json
 
 {

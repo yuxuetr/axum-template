@@ -28,7 +28,7 @@ impl Default for PaginationParams {
   }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PaginatedUsers {
   pub users: Vec<User>,
   pub total_count: i64,
