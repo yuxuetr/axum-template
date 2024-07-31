@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file. See [conven
 - support users model & handlers - ([b54999c](https://github.com/yuxuetr/rust-template/commit/b54999c941e81a67f8684c5b2eb3321119c66434)) - yuxuetr
 - users module model ops and unit test - ([ceb05f5](https://github.com/yuxuetr/rust-template/commit/ceb05f545ef013ee8572418af542baf0545d9c19)) - yuxuetr
 - support handlers integration for users module - ([203336f](https://github.com/yuxuetr/rust-template/commit/203336f9aed62b3b081ac191e9ad5948237b9498)) - yuxuetr
+- support auth module and auth_middleware for user authentication - ([cd26cb5](https://github.com/yuxuetr/rust-template/commit/cd26cb50b3399bbbedf5dbe9304cd23ede85b39b)) - yuxuetr
 
 ### Refactoring
 
