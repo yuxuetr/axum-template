@@ -1,26 +1,37 @@
-### create a user
-POST http://localhost:3009/users
+### sign in
+# @name signin
+POST http://localhost:3009/auth/signin
 Content-Type: application/json
 
 {
-	"username": "JohnDoe222",
+	"username": "joy",
 	"password": "123456"
 }
 
+@token={{signin.response.body.token}}
+
 ### get user by id
-GET http://localhost:3009/users/1
+GET http://localhost:3009/users/2
+Authorization: Bearer {{token}}
 
 ### get user by id, but user not found
-GET http://localhost:3009/users/200
+GET http://localhost:3009/users/1
+Authorization: Bearer {{token}}
 
 ### get all users
 GET http://localhost:3009/users?limit=10&offset=0
+Authorization: Bearer {{token}}
 
 ### update user by id
 PATCH http://localhost:3009/users/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
 	"username": "JohnDoe11111",
 	"password": "123456"
 }
+
+### delete user by id
+DELETE http://localhost:3009/users/1
+Authorization: Bearer {{token}}

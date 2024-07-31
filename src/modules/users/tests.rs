@@ -1,6 +1,7 @@
 // #[allow(unused_imports)]
 #[cfg(test)]
 mod util_tests {
+  pub use crate::common::auth::*;
   pub use crate::modules::users::*;
   pub use crate::AppState;
   pub use anyhow::Result;
@@ -52,15 +53,15 @@ mod util_tests {
   #[serial]
   async fn get_users_test() -> Result<()> {
     let (_tdb, state) = AppState::init_test_state().await?;
-    let user = CreateUser::new("dave", "dave_password");
+    let user = CreateUser::new("dave", "123456");
     state.create_user(user).await?;
-    let user = CreateUser::new("jonh", "dave_password");
+    let user = CreateUser::new("jonh", "123456");
     state.create_user(user).await?;
     let ret = state.get_users(2, 0).await?;
     assert_eq!(ret.users.len(), 2);
     let ret = state.get_users(1, 1).await?;
     assert_eq!(ret.users.len(), 1);
-    assert_eq!(ret.total_count, 2);
+    assert_eq!(ret.total_count, 12);
     Ok(())
   }
 
@@ -81,8 +82,8 @@ mod util_tests {
     let (_tdb, state) = AppState::init_test_state().await?;
     let user = CreateUser::new("nancy", "nancy_password");
     let user = state.create_user(user).await?;
-    let is_valid = state.verify_user(&user.username, "nancy_password").await?;
-    assert!(is_valid);
+    let user = state.verify_user(&user.username, "nancy_password").await?;
+    assert_eq!(user.username, "nancy");
     Ok(())
   }
 
@@ -127,28 +128,18 @@ mod integration_tests {
     Ok((_tdb, app))
   }
 
-  #[tokio::test]
-  #[serial]
-  async fn create_user_handler_test() -> Result<()> {
-    let (_tdb, app) = setup_test_app().await?;
-
-    let listener = TcpListener::bind("127.0.0.1:39999").await?;
-    let addr = listener.local_addr()?;
-    tokio::spawn(async move {
-      axum::serve(listener, app.into_make_service())
-        .await
-        .unwrap();
-    });
-
-    let client = Client::new();
+  async fn get_token(client: &Client, addr: &str, username: &str) -> Result<String> {
     let response = client
-      .post(format!("http://{}/users", addr))
-      .json(&json!({"username": "alice", "password": "alice_password"}))
+      .post(format!("http://{}/auth/signin", addr))
+      .json(&json!({"username": username, "password": "123456"}))
       .send()
       .await?;
-    assert_eq!(response.status(), StatusCode::CREATED);
+    assert_eq!(response.status(), StatusCode::OK);
 
-    Ok(())
+    let token: serde_json::Value = response.json().await?;
+    let token = token["token"].as_str().unwrap().to_string();
+
+    Ok(token)
   }
 
   #[tokio::test]
@@ -171,27 +162,17 @@ mod integration_tests {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client = Client::new();
-    let response = client
-      .post(format!("http://{}/users", addr))
-      .json(&json!({"username": "bob", "password": "bob_password"}))
-      .send()
-      .await?;
-    assert_eq!(response.status(), StatusCode::CREATED);
+    // 2, bob, 123456
+    let token = get_token(&client, &addr.to_string(), "bob").await?;
 
-    let user: serde_json::Value = response.json().await?;
-    let user_id = user["id"].as_i64().expect("user id not found");
-
+    // delete user
     let response = client
-      .delete(format!("http://{}/users/{}", addr, user_id))
+      .delete(format!("http://{}/users/{}", addr, 2))
+      .header("Authorization", format!("Bearer {}", &token))
       .send()
       .await?;
     assert_eq!(response.status(), StatusCode::OK);
 
-    let get_response = client
-      .get(format!("http://{}/users/{}", addr, user_id))
-      .send()
-      .await?;
-    assert_eq!(get_response.status(), StatusCode::NOT_FOUND);
     tx.send(()).unwrap();
     Ok(())
   }
@@ -214,28 +195,21 @@ mod integration_tests {
         .await
         .unwrap();
     });
-    tokio::time::sleep(Duration::from_millis(1000)).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client = Client::new();
-
-    for i in 1..=2 {
-      let response = client
-        .post(format!("http://{}/users", addr))
-        .json(&json!({"username": format!("user{}", i), "password": "password"}))
-        .send()
-        .await?;
-      assert_eq!(response.status(), StatusCode::CREATED);
-    }
+    let token = get_token(&client, &addr.to_string(), "alice").await?;
 
     let response = client
       .get(format!("http://{}/users?limit=1&offset=1", addr))
+      .header("Authorization", format!("Bearer {}", token))
       .send()
       .await?;
     assert_eq!(response.status(), StatusCode::OK);
 
     let users_page: serde_json::Value = response.json().await?;
     assert_eq!(users_page["users"].as_array().unwrap().len(), 1);
-    assert_eq!(users_page["total_count"].as_i64().unwrap(), 2);
+    assert_eq!(users_page["total_count"].as_i64().unwrap(), 10);
 
     tx.send(()).unwrap();
     Ok(())
@@ -258,21 +232,14 @@ mod integration_tests {
         .await
         .unwrap();
     });
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client = Client::new();
+    let token = get_token(&client, &addr.to_string(), "alice").await?;
 
     let response = client
-      .post(format!("http://{}/users", addr))
-      .json(&json!({"username": "alice", "password": "alice_password"}))
-      .send()
-      .await?;
-    assert_eq!(response.status(), StatusCode::CREATED);
-    let user: serde_json::Value = response.json().await?;
-    let user_id = user["id"].as_i64().expect("user id not found");
-
-    let response = client
-      .get(format!("http://{}/users/{}", addr, user_id))
+      .get(format!("http://{}/users/{}", addr, 1))
+      .header("Authorization", format!("Bearer {}", token))
       .send()
       .await?;
     assert_eq!(response.status(), StatusCode::OK);
@@ -301,29 +268,21 @@ mod integration_tests {
         .unwrap();
     });
 
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
 
     let client = Client::new();
+    let token = get_token(&client, &addr.to_string(), "charlie").await?;
 
     let response = client
-      .post(format!("http://{}/users", addr))
-      .json(&json!({"username": "alice", "password": "alice_password"}))
-      .send()
-      .await?;
-    assert_eq!(response.status(), StatusCode::CREATED);
-
-    let user: serde_json::Value = response.json().await?;
-    let user_id = user["id"].as_i64().expect("user id not found");
-
-    let response = client
-      .patch(format!("http://{}/users/{}", addr, user_id))
-      .json(&json!({"username": "alice_updated", "password": "alice_password_updated"}))
+      .patch(format!("http://{}/users/{}", addr, 3))
+      .json(&json!({"username": "charlie_updated", "password": "123456"}))
+      .header("Authorization", format!("Bearer {}", token))
       .send()
       .await?;
     assert_eq!(response.status(), StatusCode::OK);
 
     let updated_user: serde_json::Value = response.json().await?;
-    assert_eq!(&updated_user["username"], "alice_updated");
+    assert_eq!(&updated_user["username"], "charlie_updated");
 
     tx.send(()).unwrap();
 

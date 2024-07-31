@@ -3,13 +3,10 @@ use crate::modules::users::dto::{CreateUser, UpdateUser};
 use crate::modules::users::entity::User;
 use crate::AppState;
 
-use argon2::{
-  password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-  Argon2,
-};
 use chrono::Utc;
 
 use super::dto::PaginatedUsers;
+use crate::common::hash_password;
 
 impl AppState {
   pub async fn create_user(&self, input: CreateUser) -> Result<User, AppError> {
@@ -94,11 +91,37 @@ impl AppState {
 
     match user {
       Some(user) => Ok(user),
-      None => Err(AppError::NotFound(format!(
-        "User with id {} not found",
-        user_id
-      ))),
+      None => Err(AppError::NotFound(format!("User: {} not found", user_id))),
     }
+  }
+
+  pub async fn get_user_by_username(&self, username: &str) -> Result<User, AppError> {
+    let user = sqlx::query_as(
+      r#"
+      SELECT id, username, created_at, updated_at
+      FROM users
+      WHERE username = $1
+      "#,
+    )
+    .bind(username)
+    .fetch_one(&self.pool)
+    .await
+    .map_err(|_| AppError::NotFound(format!("User: {} not found", username)))?;
+    Ok(user)
+  }
+  pub async fn verify_user_by_username(&self, username: &str) -> Result<User, AppError> {
+    let user = sqlx::query_as(
+      r#"
+      SELECT id, username, password, created_at, updated_at
+      FROM users
+      WHERE username = $1
+      "#,
+    )
+    .bind(username)
+    .fetch_one(&self.pool)
+    .await
+    .map_err(|_| AppError::NotFound(format!("User: {} not found", username)))?;
+    Ok(user)
   }
 
   pub async fn get_users(&self, limit: i64, offset: i64) -> Result<PaginatedUsers, AppError> {
@@ -132,42 +155,4 @@ impl AppState {
       total_count: total_count.0,
     })
   }
-
-  pub async fn verify_user(&self, username: &str, password: &str) -> Result<bool, AppError> {
-    let user: User = sqlx::query_as(
-      r#"
-      SELECT id, username, password, created_at, updated_at
-      FROM users
-      WHERE username = $1
-      "#,
-    )
-    .bind(username)
-    .fetch_one(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
-
-    if verify_password(password, &user.password)? {
-      Ok(true)
-    } else {
-      Err(AppError::Unauthorized("Invalid password".to_string()))
-    }
-  }
-}
-
-pub fn hash_password(password: &str) -> Result<String, AppError> {
-  let salt = SaltString::generate(&mut OsRng);
-  let argon2 = Argon2::default();
-  let hashed_password = argon2
-    .hash_password(password.as_bytes(), &salt)?
-    .to_string();
-  Ok(hashed_password)
-}
-
-pub fn verify_password(password: &str, hashed_password: &str) -> Result<bool, AppError> {
-  let argon2 = Argon2::default();
-  let parsed_hash = PasswordHash::new(hashed_password)?;
-  let is_valid = argon2
-    .verify_password(password.as_bytes(), &parsed_hash)
-    .is_ok();
-  Ok(is_valid)
 }

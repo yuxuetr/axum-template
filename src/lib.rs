@@ -1,4 +1,5 @@
 use anyhow::Result;
+use axum::middleware::from_fn_with_state;
 use axum::Router;
 use sqlx::PgPool;
 use std::ops::Deref;
@@ -8,10 +9,14 @@ pub mod common;
 pub mod modules;
 pub use common::config::AppConfig;
 pub use common::errors::AppError;
-pub use modules::users::*;
+pub use modules::auth::{auth_middleware, auth_router};
+pub use modules::users::users_router;
 
 pub async fn get_router(state: AppState) -> Result<Router, AppError> {
-  let router = Router::new().nest("/users", users_router(state.clone()));
+  let router = Router::new()
+    .nest("/users", users_router(state.clone()))
+    .layer(from_fn_with_state(state.clone(), auth_middleware))
+    .nest("/auth", auth_router(state.clone()));
   Ok(router)
 }
 
@@ -55,6 +60,7 @@ impl Deref for AppState {
 #[cfg(test)]
 mod test_util {
   use super::*;
+  use sqlx::{Executor, PgPool};
   use sqlx_db_tester::TestPg;
 
   impl AppState {
@@ -64,6 +70,19 @@ mod test_util {
       let db_url = config.database.db_url[..pos].to_string();
       let tdb = TestPg::new(db_url, std::path::Path::new("./migrations"));
       let pool = tdb.get_pool().await;
+
+      // test_data.sql start
+      let sql = include_str!("../fixtures/test_data.sql").split(';');
+      let mut ts = pool.begin().await.expect("begin transaction failed");
+      for s in sql {
+        if s.trim().is_empty() {
+          continue;
+        }
+        ts.execute(s).await.expect("execute sql failed");
+      }
+      ts.commit().await.expect("commit transaction failed");
+      // test_data.sql end
+
       let state = Self {
         inner: Arc::new(AppStateInner { config, pool }),
       };

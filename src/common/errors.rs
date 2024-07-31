@@ -32,8 +32,17 @@ pub enum AppError {
   #[error("password hash error: {0}")]
   PasswordHashError(#[from] argon2::password_hash::Error),
 
+  #[error("password error: {0}")]
+  PasswordError(String),
+
   #[error("sql error: {0}")]
   SqlxError(#[from] sqlx::Error),
+
+  #[error("jwt error: {0}")]
+  JwtError(#[from] jwt_simple::Error),
+
+  #[error("io error: {0}")]
+  IOError(#[from] std::io::Error),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -53,6 +62,9 @@ impl IntoResponse for AppError {
       Self::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
       Self::PasswordHashError(_) => StatusCode::UNPROCESSABLE_ENTITY,
       Self::SqlxError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+      Self::JwtError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+      Self::PasswordError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+      Self::IOError(_) => StatusCode::INTERNAL_SERVER_ERROR,
     };
 
     (status, Json(ErrorOutput::new(self.to_string()))).into_response()

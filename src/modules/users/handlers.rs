@@ -1,4 +1,4 @@
-use super::{CreateUser, PaginationParams, UpdateUser};
+use super::{PaginationParams, UpdateUser};
 use crate::common::errors::AppError;
 use crate::AppState;
 
@@ -8,14 +8,6 @@ use axum::{
   response::IntoResponse,
   Json,
 };
-
-pub async fn create_user_handler(
-  State(state): State<AppState>,
-  Json(payload): Json<CreateUser>,
-) -> Result<impl IntoResponse, AppError> {
-  let user = state.create_user(payload).await?;
-  Ok((StatusCode::CREATED, Json(user)))
-}
 
 pub async fn delete_user_handler(
   State(state): State<AppState>,

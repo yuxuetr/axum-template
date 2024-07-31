@@ -6,7 +6,6 @@ pub struct CreateUser {
   pub username: String,
   pub password: String,
 }
-
 #[derive(Debug, Deserialize)]
 pub struct UpdateUser {
   pub username: Option<String>,
