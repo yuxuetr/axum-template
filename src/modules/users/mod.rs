@@ -4,8 +4,10 @@ pub mod handlers;
 pub mod services;
 pub mod tests;
 
-pub use dto::{CreateUser, PaginationParams, UpdateUser};
-pub use entity::User;
+pub use dto::{
+  CreateUser, IsWho, PaginationParams, PermissionIn, RoleIn, UpdateUser, UpdateUserOptions, User,
+};
+pub use entity::{Permission, PermissionName, Role, RoleName, UserInfo, VecExtensions};
 pub use handlers::{delete_user_handler, get_user_handler, get_users_handler, update_user_handler};
 
 use crate::AppState;

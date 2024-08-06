@@ -43,6 +43,9 @@ pub enum AppError {
 
   #[error("io error: {0}")]
   IOError(#[from] std::io::Error),
+
+  #[error("user existed: {0}")]
+  UserExisted(String),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -65,6 +68,7 @@ impl IntoResponse for AppError {
       Self::JwtError(_) => StatusCode::UNPROCESSABLE_ENTITY,
       Self::PasswordError(_) => StatusCode::UNPROCESSABLE_ENTITY,
       Self::IOError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+      Self::UserExisted(_) => StatusCode::UNPROCESSABLE_ENTITY,
     };
 
     (status, Json(ErrorOutput::new(self.to_string()))).into_response()

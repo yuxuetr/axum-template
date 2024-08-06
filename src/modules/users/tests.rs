@@ -21,9 +21,9 @@ mod util_tests {
   #[serial]
   async fn create_user_test() -> Result<()> {
     let (_tdb, state) = AppState::init_test_state().await?;
-    let user = CreateUser::new("alice", "alice_password");
+    let user = CreateUser::new("alice1", "alice_password");
     let user = state.create_user(user).await?;
-    assert_eq!(user.username, "alice");
+    assert_eq!(user.user_info.username, "alice1");
     Ok(())
   }
 
@@ -31,9 +31,9 @@ mod util_tests {
   #[serial]
   async fn delete_user_test() -> Result<()> {
     let (_tdb, state) = AppState::init_test_state().await?;
-    let user = CreateUser::new("bob", "bob_password");
+    let user = CreateUser::new("bob1", "bob_password");
     let user = state.create_user(user).await?;
-    state.delete_user(user.id).await?;
+    state.delete_user(user.user_info.id).await?;
     Ok(())
   }
 
@@ -41,11 +41,22 @@ mod util_tests {
   #[serial]
   async fn update_user_test() -> Result<()> {
     let (_tdb, state) = AppState::init_test_state().await?;
-    let user = CreateUser::new("charlie", "charlie_password");
+    let user = CreateUser::new("charlie1", "charlie_password");
     let user = state.create_user(user).await?;
-    let updated_user = UpdateUser::new("charlie_updated", "charlie_password_updated");
-    let updated_user = state.update_user(user.id, updated_user).await?;
-    assert_eq!(updated_user.username, "charlie_updated");
+    let is_who = IsWho {
+      is_own_user: true,
+      is_moderator: false,
+      is_admin: false,
+    };
+    let user_options = UpdateUserOptions {
+      username: Some("charlie_updated".to_string()),
+      password: Some("charlie_password_updated".to_string()),
+      roles: None,
+      permissions: None,
+    };
+    let updated_user = UpdateUser::new(user_options, is_who);
+    let updated_user = state.update_user(user.user_info.id, updated_user).await?;
+    assert_eq!(updated_user.user_info.username, "charlie_updated");
     Ok(())
   }
 
@@ -53,15 +64,11 @@ mod util_tests {
   #[serial]
   async fn get_users_test() -> Result<()> {
     let (_tdb, state) = AppState::init_test_state().await?;
-    let user = CreateUser::new("dave", "123456");
-    state.create_user(user).await?;
-    let user = CreateUser::new("jonh", "123456");
-    state.create_user(user).await?;
     let ret = state.get_users(2, 0).await?;
     assert_eq!(ret.users.len(), 2);
     let ret = state.get_users(1, 1).await?;
     assert_eq!(ret.users.len(), 1);
-    assert_eq!(ret.total_count, 12);
+    assert_eq!(ret.total_count, 11);
     Ok(())
   }
 
@@ -71,8 +78,8 @@ mod util_tests {
     let (_tdb, state) = AppState::init_test_state().await?;
     let user = CreateUser::new("mike", "mike_password");
     let user = state.create_user(user).await?;
-    let user = state.get_user_by_id(user.id).await?;
-    assert_eq!(user.username, "mike");
+    let user = state.get_user_by_id(user.user_info.id).await?;
+    assert_eq!(user.user_info.username, "mike");
     Ok(())
   }
 
@@ -82,8 +89,10 @@ mod util_tests {
     let (_tdb, state) = AppState::init_test_state().await?;
     let user = CreateUser::new("nancy", "nancy_password");
     let user = state.create_user(user).await?;
-    let user = state.verify_user(&user.username, "nancy_password").await?;
-    assert_eq!(user.username, "nancy");
+    let user = state
+      .verify_user(&user.user_info.username, "nancy_password")
+      .await?;
+    assert_eq!(user.user_info.username, "nancy");
     Ok(())
   }
 
@@ -93,16 +102,6 @@ mod util_tests {
       Self {
         username: username.to_string(),
         password: password.to_string(),
-      }
-    }
-  }
-
-  #[cfg(test)]
-  impl UpdateUser {
-    pub fn new(username: &str, password: &str) -> Self {
-      Self {
-        username: Some(username.to_string()),
-        password: Some(password.to_string()),
       }
     }
   }
@@ -128,10 +127,10 @@ mod integration_tests {
     Ok((_tdb, app))
   }
 
-  async fn get_token(client: &Client, addr: &str, username: &str) -> Result<String> {
+  async fn get_token(client: &Client, addr: &str) -> Result<String> {
     let response = client
       .post(format!("http://{}/auth/signin", addr))
-      .json(&json!({"username": username, "password": "123456"}))
+      .json(&json!({"username": "superman", "password": "supermannofly"}))
       .send()
       .await?;
     assert_eq!(response.status(), StatusCode::OK);
@@ -162,12 +161,12 @@ mod integration_tests {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client = Client::new();
-    // 2, bob, 123456
-    let token = get_token(&client, &addr.to_string(), "bob").await?;
+    // 3, bob, 123456
+    let token = get_token(&client, &addr.to_string()).await?;
 
     // delete user
     let response = client
-      .delete(format!("http://{}/users/{}", addr, 2))
+      .delete(format!("http://{}/users/{}", addr, 3))
       .header("Authorization", format!("Bearer {}", &token))
       .send()
       .await?;
@@ -198,7 +197,7 @@ mod integration_tests {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client = Client::new();
-    let token = get_token(&client, &addr.to_string(), "alice").await?;
+    let token = get_token(&client, &addr.to_string()).await?;
 
     let response = client
       .get(format!("http://{}/users?limit=1&offset=1", addr))
@@ -209,7 +208,7 @@ mod integration_tests {
 
     let users_page: serde_json::Value = response.json().await?;
     assert_eq!(users_page["users"].as_array().unwrap().len(), 1);
-    assert_eq!(users_page["total_count"].as_i64().unwrap(), 10);
+    assert_eq!(users_page["total_count"].as_i64().unwrap(), 11);
 
     tx.send(()).unwrap();
     Ok(())
@@ -235,7 +234,7 @@ mod integration_tests {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let client = Client::new();
-    let token = get_token(&client, &addr.to_string(), "alice").await?;
+    let token = get_token(&client, &addr.to_string()).await?;
 
     let response = client
       .get(format!("http://{}/users/{}", addr, 1))
@@ -244,7 +243,7 @@ mod integration_tests {
       .await?;
     assert_eq!(response.status(), StatusCode::OK);
     let retrieved_user: serde_json::Value = response.json().await?;
-    assert_eq!(&retrieved_user["username"], "alice");
+    assert_eq!(&retrieved_user["user_info"]["username"], "superman");
 
     tx.send(()).unwrap();
 
@@ -253,7 +252,7 @@ mod integration_tests {
 
   #[tokio::test]
   #[serial]
-  async fn update_user_handler_test() -> Result<()> {
+  async fn admin_cannot_update_user_info_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 
     let listener = TcpListener::bind("127.0.0.1:40004").await?;
@@ -271,10 +270,10 @@ mod integration_tests {
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     let client = Client::new();
-    let token = get_token(&client, &addr.to_string(), "charlie").await?;
+    let token = get_token(&client, &addr.to_string()).await?;
 
     let response = client
-      .patch(format!("http://{}/users/{}", addr, 3))
+      .patch(format!("http://{}/users/{}", addr, 4))
       .json(&json!({"username": "charlie_updated", "password": "123456"}))
       .header("Authorization", format!("Bearer {}", token))
       .send()
@@ -282,7 +281,7 @@ mod integration_tests {
     assert_eq!(response.status(), StatusCode::OK);
 
     let updated_user: serde_json::Value = response.json().await?;
-    assert_eq!(&updated_user["username"], "charlie_updated");
+    assert_eq!(&updated_user["user_info"]["username"], "charlie");
 
     tx.send(()).unwrap();
 

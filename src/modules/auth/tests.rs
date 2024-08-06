@@ -18,7 +18,7 @@ mod util_tests {
   async fn verify_user_test() -> Result<()> {
     let (_tdb, state) = AppState::init_test_state().await?;
     let user = state.verify_user("alice", "123456").await?;
-    assert_eq!(user.username, "alice");
+    assert_eq!(user.user_info.username, "alice");
     Ok(())
   }
 }
@@ -57,7 +57,7 @@ mod integration_tests {
     let client = Client::new();
     let response = client
       .post(format!("http://{}/auth/signup", addr))
-      .json(&json!({"username": "alice", "password": "alice_password"}))
+      .json(&json!({"username": "xuetrdi", "password": "123456"}))
       .send()
       .await?;
     assert_eq!(response.status(), StatusCode::CREATED);
