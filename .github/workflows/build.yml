@@ -40,7 +40,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config
+          sudo apt-get install -y pkg-config cmake
       - name: Set BoringSSL environment variables
         run: |
           BORINGSSL_DIR=$(boringssl version -d | cut -d'"' -f2)
