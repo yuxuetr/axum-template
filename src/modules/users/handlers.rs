@@ -8,6 +8,7 @@ use axum::{
   response::IntoResponse,
   Extension, Json,
 };
+use validator::Validate;
 
 pub async fn delete_user_handler(
   State(state): State<AppState>,
@@ -23,6 +24,7 @@ pub async fn update_user_handler(
   Path(user_id): Path<i32>,
   Json(input): Json<UpdateUserOptions>,
 ) -> Result<impl IntoResponse, AppError> {
+  input.validate()?;
   let is_who = state.get_role_by_claim(&claims, user_id).await?;
   let input = UpdateUser::new(input, is_who);
 
@@ -48,6 +50,7 @@ pub async fn get_users_handler(
   State(state): State<AppState>,
   Query(params): Query<PaginationParams>,
 ) -> Result<impl IntoResponse, AppError> {
+  params.validate()?;
   let is_who = state
     .get_role_by_claim(&claims, claims.user_info.id)
     .await?;

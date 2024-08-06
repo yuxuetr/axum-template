@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use validator::ValidationErrors;
 
 #[derive(Debug, Error)]
 pub enum AppError {
@@ -48,6 +49,25 @@ pub enum AppError {
   UserExisted(String),
 }
 
+impl From<ValidationErrors> for AppError {
+  fn from(errors: ValidationErrors) -> Self {
+    let errors = errors
+      .field_errors()
+      .iter()
+      .flat_map(|(_, errors)| {
+        errors.iter().map(|error| {
+          if let Some(message) = &error.message {
+            message.clone().into_owned()
+          } else {
+            "Invalid value".to_string()
+          }
+        })
+      })
+      .collect::<Vec<String>>()
+      .join(", ");
+    AppError::ValidationError(errors)
+  }
+}
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ErrorOutput {
   pub error: String,

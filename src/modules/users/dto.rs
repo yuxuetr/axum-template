@@ -1,16 +1,27 @@
 use super::{Permission, PermissionName, Role, RoleName, UserInfo, VecExtensions};
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 /// Input Dto
 /// user create input dto
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateUser {
+  #[validate(length(
+    min = 3,
+    max = 50,
+    message = "username length must be between 3 and 50 characters"
+  ))]
   pub username: String,
+  #[validate(length(
+    min = 6,
+    max = 50,
+    message = "password length must be between 8 and 50 characters"
+  ))]
   pub password: String,
 }
 
 /// user update input dto with is_who
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateUser {
   pub username: Option<String>,
   pub password: Option<String>,
@@ -22,11 +33,23 @@ pub struct UpdateUser {
 }
 
 /// user update input dto
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateUserOptions {
+  #[validate(length(
+    min = 3,
+    max = 50,
+    message = "username length must be between 3 and 50 characters"
+  ))]
   pub username: Option<String>,
+  #[validate(length(
+    min = 6,
+    max = 50,
+    message = "password length must be between 8 and 50 characters"
+  ))]
   pub password: Option<String>,
+  #[validate(nested)]
   pub roles: Option<Vec<RoleIn>>,
+  #[validate(nested)]
   pub permissions: Option<Vec<PermissionIn>>,
 }
 
@@ -39,16 +62,20 @@ pub struct IsWho {
 }
 
 /// update role input dto
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Validate)]
 pub struct RoleIn {
+  #[validate(range(min = 1, max = 4))]
   pub id: i32,
+  #[validate(length(min = 3, max = 50))]
   pub name: String,
 }
 
 /// update permission input dto
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Validate)]
 pub struct PermissionIn {
+  #[validate(range(min = 1, max = 12))]
   pub id: i32,
+  #[validate(length(min = 3, max = 50))]
   pub name: String,
 }
 
@@ -113,9 +140,11 @@ impl VecExtensions<PermissionName> for Vec<PermissionIn> {
 }
 
 /// user pagination input dto
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct PaginationParams {
+  #[validate(range(min = 1, max = 100))]
   pub limit: i64,
+  #[validate(range(min = 0))]
   pub offset: i64,
 }
 

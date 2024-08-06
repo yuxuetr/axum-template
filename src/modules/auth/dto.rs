@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct TokenRequest {
+  #[validate(length(min = 3, max = 50))]
   pub username: String,
+  #[validate(length(min = 6, max = 50))]
   pub password: String,
 }
 
