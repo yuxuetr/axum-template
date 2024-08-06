@@ -16,6 +16,10 @@ All notable changes to this project will be documented in this file. See [conven
 - github actions reqwest ssl error - ([0bed439](https://github.com/yuxuetr/rust-template/commit/0bed439e7175fa3ad6023937dfa0f1c6925e5337)) - yuxuetr
 - github actions reqwest ssl error again - ([25546d9](https://github.com/yuxuetr/rust-template/commit/25546d9ece322b20384bb6792b86d7cdc938b5c5)) - yuxuetr
 
+### Documentation
+
+- update CHANGELOG.md and README.md - ([c715533](https://github.com/yuxuetr/rust-template/commit/c715533776fde8e4b062a986115cd69fb650bf42)) - yuxuetr
+
 ### Features
 
 - jwt_simple generate Ed25519 public & private pem key - ([61dce79](https://github.com/yuxuetr/rust-template/commit/61dce79478a30171fc7e29050287f39a5ebba5b1)) - yuxuetr
@@ -25,6 +29,8 @@ All notable changes to this project will be documented in this file. See [conven
 - support handlers integration for users module - ([203336f](https://github.com/yuxuetr/rust-template/commit/203336f9aed62b3b081ac191e9ad5948237b9498)) - yuxuetr
 - support auth module and auth_middleware for user authentication - ([cd26cb5](https://github.com/yuxuetr/rust-template/commit/cd26cb50b3399bbbedf5dbe9304cd23ede85b39b)) - yuxuetr
 - support rbac management user roles and permissions - ([7310279](https://github.com/yuxuetr/rust-template/commit/73102792d55cc5e560bd1739ee9dcd0f660e2894)) - yuxuetr
+- support handlers input validator columns - ([5d763d8](https://github.com/yuxuetr/rust-template/commit/5d763d80add33acb821946be9731ac64614ce8e7)) - yuxuetr
+- support console and file logging output - ([a52b446](https://github.com/yuxuetr/rust-template/commit/a52b4468fc1949318148a624cfd5d1aec4b5e6b2)) - yuxuetr
 
 ### Other
 
