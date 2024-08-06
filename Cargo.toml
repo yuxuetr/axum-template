@@ -19,6 +19,7 @@ sqlx = {version = "0.7", features = ["chrono", "postgres", "runtime-tokio", "tls
 thiserror = "1.0.63"
 tokio = {version = "1.37.0", features = ["rt", "rt-multi-thread", "macros"]}
 tracing = "0.1.40"
+tracing-appender = "0.2.3"
 tracing-subscriber = {version = "0.3.18", features = ["env-filter"]}
 validator = { version = "0.18.1", features = ["derive"] }
 

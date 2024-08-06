@@ -15,7 +15,7 @@ pub async fn signup_handler(
   Json(payload): Json<CreateUser>,
 ) -> Result<impl IntoResponse, AppError> {
   payload.validate()?;
-  info!("signup::create user: {:?}", payload);
+  info!("Auth Handler::create user: input: {:?}", payload);
   let user = state.create_user(payload).await?;
   Ok((StatusCode::CREATED, Json(user)))
 }
@@ -25,7 +25,7 @@ pub async fn signin_handler(
   Json(payload): Json<TokenRequest>,
 ) -> Result<impl IntoResponse, AppError> {
   payload.validate()?;
-  info!("signin::get token: {:?}", payload);
+  info!("Auth Handler::get token: username: {:?}", payload.username);
   let token = state
     .get_token(&payload.username, &payload.password)
     .await?;
