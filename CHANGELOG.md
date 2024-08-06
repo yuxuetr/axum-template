@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file. See [conven
 
 - modify README.md - ([dcc4564](https://github.com/yuxuetr/rust-template/commit/dcc456444905feabef4b38512761bafc928de604)) - yuxuetr
 - add test_data.sql and update CHANGELOG.md - ([c81f5ed](https://github.com/yuxuetr/rust-template/commit/c81f5ed7dc06956ea8eb2d031bc4ab997e459b6d)) - yuxuetr
+- fix github action reqwest ssl error - ([f485425](https://github.com/yuxuetr/rust-template/commit/f4854258995885d933aa47eb4fddd7f62b63f3b0)) - yuxuetr
+- github actions reqwest openssl again - ([d64ba8e](https://github.com/yuxuetr/rust-template/commit/d64ba8ef482d2ce2614c678634641346af4ec30e)) - yuxuetr
+- github actions openssl error - ([80a8dba](https://github.com/yuxuetr/rust-template/commit/80a8dbad7ee7941ec1aa6711f3737236384c87fa)) - yuxuetr
+- fix CI test reqwest openssl error - ([9e0cc3e](https://github.com/yuxuetr/rust-template/commit/9e0cc3eb4ad86c6c427a6e824aac93e218fe5aa4)) - yuxuetr
+- github actions reqwest ssl error - ([0bed439](https://github.com/yuxuetr/rust-template/commit/0bed439e7175fa3ad6023937dfa0f1c6925e5337)) - yuxuetr
+- github actions reqwest ssl error again - ([25546d9](https://github.com/yuxuetr/rust-template/commit/25546d9ece322b20384bb6792b86d7cdc938b5c5)) - yuxuetr
 
 ### Features
 
@@ -19,6 +25,10 @@ All notable changes to this project will be documented in this file. See [conven
 - support handlers integration for users module - ([203336f](https://github.com/yuxuetr/rust-template/commit/203336f9aed62b3b081ac191e9ad5948237b9498)) - yuxuetr
 - support auth module and auth_middleware for user authentication - ([cd26cb5](https://github.com/yuxuetr/rust-template/commit/cd26cb50b3399bbbedf5dbe9304cd23ede85b39b)) - yuxuetr
 - support rbac management user roles and permissions - ([7310279](https://github.com/yuxuetr/rust-template/commit/73102792d55cc5e560bd1739ee9dcd0f660e2894)) - yuxuetr
+
+### Other
+
+- update CHANGELOG.md - ([e396853](https://github.com/yuxuetr/rust-template/commit/e3968536989188ee0eba58f401d34d34d60e3761)) - yuxuetr
 
 ### Refactoring
 
