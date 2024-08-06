@@ -40,14 +40,14 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
-      - name: Set OpenSSL environment variables
+          sudo apt-get install -y pkg-config
+      - name: Set BoringSSL environment variables
         run: |
-          OPENSSL_DIR=$(openssl version -d | cut -d'"' -f2)
-          echo "OPENSSL_DIR=$OPENSSL_DIR" >> $GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$OPENSSL_DIR/include" >> $GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$OPENSSL_DIR/lib" >> $GITHUB_ENV
-          echo "DEP_OPENSSL_INCLUDE=$OPENSSL_DIR/include" >> $GITHUB_ENV
+          BORINGSSL_DIR=$(boringssl version -d | cut -d'"' -f2)
+          echo "BORINGSSL_DIR=$BORINGSSL_DIR" >> $GITHUB_ENV
+          echo "BORINGSSL_INCLUDE_DIR=$BORINGSSL_DIR/include" >> $GITHUB_ENV
+          echo "BORINGSSL_LIB_DIR=$BORINGSSL_DIR/lib" >> $GITHUB_ENV
+          echo "DEP_BORINGSSL_INCLUDE=$BORINGSSL_DIR/include" >> $GITHUB_ENV
       - name: Install Rust
         run: rustup toolchain install stable --component llvm-tools-preview
       - name: Install cargo-llvm-cov
