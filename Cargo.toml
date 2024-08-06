@@ -28,6 +28,8 @@ jwt-simple = "0.12.9"
 [dev-dependencies]
 axum-extra = "0.9.3"
 hyper = {version = "1.4.1", features = ["http2", "client", "server"]}
+openssl = "0.10.66"
+openssl-sys = { version = "0.9.103", features = ["vendored"] }
 reqwest = {version = "0.12.5", features = ["json"]}
 serde_json = "1.0.120"
 serial_test = "3.1.1"
