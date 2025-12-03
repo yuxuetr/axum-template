@@ -3,10 +3,48 @@
 本项目实践使用 Axum 搭建后台服务，包括:
 
 - 构建 API
-- 使用 Sqlx 和 Postgres 数据库提供数据库服务
+- 使用 Sqlx v0.8.6 和 Postgres 数据库提供数据库服务
 - 采用类似 Nest.js 的项目组织结构，使得项目的文本文件负责单独的职责使得代码更信息易读
+- 完整的认证授权系统 (JWT + RBAC)
+- 高性能的数据库查询优化
+- 完善的错误处理和日志记录
+- 健康检查端点支持
 - 包含单元测试和集成测试代码
 - Github Actions CI
+
+## 快速开始
+
+### 环境要求
+- Rust 1.70+
+- PostgreSQL 12+
+- Docker (可选)
+
+### 本地开发
+```bash
+# 1. 克隆项目
+git clone https://github.com/yuxuetr/rust-template.git
+cd rust-template
+
+# 2. 创建数据库
+createdb axum_template
+
+# 3. 运行数据库迁移
+sqlx migrate run
+
+# 4. 启动服务
+cargo run
+```
+
+服务将在 `http://localhost:3000` 启动。
+
+### Docker 部署
+```bash
+# 构建镜像
+docker build -t axum-template .
+
+# 运行容器
+docker run -p 3000:3000 -e DATABASE_URL="postgresql://user:password@localhost/dbname" axum-template
+```
 
 ## 基础开发环境搭建
 
@@ -23,6 +61,7 @@
 │   ├── common          # 放置公共模块，比如加解密，签名与验证，error模块，config模块等
 │   └── modules         # 业务模块
 │       ├── auth        # 注册认证模块，模块中包含: `handlers`,`services`,`dto`,`tests`,`middleware`等
+│       ├── health      # 健康检查模块，提供应用和数据库状态监控
 │       └── users       # 用户管理模块，模块中包含: `handlers`,`services`,`dto`,`tests`, `entity`等
 ```
 
@@ -54,6 +93,54 @@
    这样测试日志可以明确看清楚是属于什么测试，并且按照模块写测试，便于出错后排查
 7. 使用`pre-commit`严格执行各类工具检查，使代码更加规范化，`cargo-deny`也会优化代码，让代码更合理
 8. Token 的签名算法使用`Ed25519`，这样便于将公钥与私钥分开，签名依赖私钥，验证签名依赖公钥，这样如果想将验证签名作为一个独立的服务很容易也更安全
+
+## API 端点
+
+### 认证模块 (`/auth`)
+- `POST /auth/signup` - 用户注册
+- `POST /auth/signin` - 用户登录
+
+### 用户管理模块 (`/users`)
+- `GET /users` - 获取用户列表 (支持分页)
+- `GET /users/:id` - 获取用户详情
+- `PATCH /users/:id` - 更新用户信息
+- `DELETE /users/:id` - 删除用户
+
+### 健康检查模块
+- `GET /health` - 基础健康检查 (返回应用状态、版本、运行时间)
+- `GET /health/ready` - 就绪检查 (包含数据库连接状态和响应时间)
+- `GET /health/live` - 存活检查 (Kubernetes liveness probe)
+
+## 核心特性
+
+### 🔐 认证授权系统
+- **JWT认证**: 使用Ed25519算法，公私钥分离设计
+- **RBAC权限控制**: 基于角色和权限的访问控制
+- **中间件保护**: 自动Token验证和用户信息注入
+
+### ⚡ 性能优化
+- **JWT密钥缓存**: 避免重复文件读取，提升认证性能
+- **数据库查询优化**: 解决N+1查询问题，使用批量查询
+- **连接池管理**: 高效的数据库连接复用
+
+### 🛡️ 错误处理与监控
+- **结构化错误响应**: 包含错误ID、时间戳的标准化错误格式
+- **错误追踪**: UUID错误标识符，便于日志分析和问题定位
+- **健康监控**: 全面的应用和数据库健康状态检查
+
+### 🧪 测试体系
+- **单元测试**: 覆盖核心业务逻辑
+- **集成测试**: 端到端API测试
+- **并发测试**: 使用`serial_test`确保测试独立性
+
+## 最新技术栈
+
+- **Rust**: 最新稳定版，兼容Rust 2024
+- **Axum**: v0.8.7 - 高性能异步Web框架
+- **SQLx**: v0.8.6 - 编译时安全的SQL工具包
+- **PostgreSQL**: 可靠的关系型数据库
+- **JWT-Simple**: 轻量级JWT处理库
+- **Tracing**: 结构化日志记录
 
 ## 博客地址
 
