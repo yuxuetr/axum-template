@@ -10,10 +10,12 @@ pub mod modules;
 pub use common::config::AppConfig;
 pub use common::errors::AppError;
 pub use modules::auth::{auth_middleware, auth_router};
+pub use modules::health::health_router;
 pub use modules::users::users_router;
 
 pub async fn get_router(state: AppState) -> Result<Router, AppError> {
   let router = Router::new()
+    .merge(health_router(state.clone()))
     .nest("/users", users_router(state.clone()))
     .layer(from_fn_with_state(state.clone(), auth_middleware))
     .nest("/auth", auth_router(state.clone()));
@@ -40,7 +42,7 @@ impl AppState {
   }
 
   pub async fn init_state() -> Result<AppState> {
-    let config = AppConfig::from_file("app.yaml");
+    let config = AppConfig::from_file("app.yaml")?;
     let pool = PgPool::connect(&config.database.db_url).await?;
     let state = AppState::new(config, pool);
     Ok(state)
@@ -65,7 +67,7 @@ mod test_util {
 
   impl AppState {
     pub async fn init_test_state() -> Result<(TestPg, AppState), AppError> {
-      let config = AppConfig::from_file("app.yaml");
+      let config = AppConfig::from_file("app.yaml").map_err(|e| AppError::InternalServerError)?;
       let pos = config.database.db_url.rfind('/').unwrap();
       let db_url = config.database.db_url[..pos].to_string();
       let tdb = TestPg::new(db_url, std::path::Path::new("./migrations"));
