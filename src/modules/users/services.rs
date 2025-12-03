@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
+use crate::AppState;
 use crate::common::errors::AppError;
 use crate::modules::users::dto::{CreateUser, IsWho, UpdateUser, User};
 use crate::modules::users::entity::{Permission, Role, RoleName, UserInfo, VecExtensions};
-use crate::AppState;
 
 use chrono::Utc;
 
@@ -12,14 +12,11 @@ use crate::common::hash_password;
 
 impl AppState {
   pub async fn create_user(&self, input: CreateUser) -> Result<User, AppError> {
-    match self.is_user_exists_by_username(&input.username).await? {
-      true => {
-        return Err(AppError::UserExisted(format!(
-          "User: {} already exists",
-          input.username
-        )))
-      }
-      false => (),
+    if self.is_user_exists_by_username(&input.username).await? {
+      return Err(AppError::UserExisted(format!(
+        "User: {} already exists",
+        input.username
+      )));
     }
 
     let hashed_password = hash_password(&input.password)?;
@@ -110,7 +107,7 @@ impl AppState {
         return Err(AppError::NotFound(format!(
           "User with id {} not found",
           user_id
-        )))
+        )));
       }
     }
     let mut transaction = self
@@ -182,7 +179,7 @@ impl AppState {
         return Err(AppError::NotFound(format!(
           "User with id {} not found",
           user_id
-        )))
+        )));
       }
     }
 

@@ -1,11 +1,11 @@
-use axum_template::{get_router, AppState};
+use axum_template::{AppState, get_router};
 
 use anyhow::Result;
 use tokio::net::TcpListener;
 use tracing::info;
 use tracing_appender::rolling;
 use tracing_subscriber::{
-  fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer as _,
+  EnvFilter, Layer as _, fmt, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
 #[tokio::main]

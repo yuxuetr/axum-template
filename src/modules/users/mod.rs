@@ -12,14 +12,14 @@ pub use handlers::{delete_user_handler, get_user_handler, get_users_handler, upd
 
 use crate::AppState;
 
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
 
 pub fn users_router(state: AppState) -> Router {
   Router::new()
     .route("/", get(get_users_handler))
     .route(
-      "/:id",
+      "/{id}",
       get(get_user_handler)
         .patch(update_user_handler)
         .delete(delete_user_handler),

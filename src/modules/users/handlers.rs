@@ -1,12 +1,12 @@
 use super::{PaginationParams, UpdateUser, UpdateUserOptions, User};
-use crate::common::errors::AppError;
 use crate::AppState;
+use crate::common::errors::AppError;
 
 use axum::{
+  Extension, Json,
   extract::{Path, Query, State},
   http::StatusCode,
   response::IntoResponse,
-  Extension, Json,
 };
 use tracing::info;
 use validator::Validate;

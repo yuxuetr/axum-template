@@ -25,9 +25,9 @@ mod util_tests {
 
 #[cfg(test)]
 mod integration_tests {
-  use crate::{get_router, AppState};
+  use crate::{AppState, get_router};
   use anyhow::Result;
-  use axum::{http::StatusCode, Router};
+  use axum::{Router, http::StatusCode};
   use reqwest::Client;
   use serde_json::json;
   use serial_test::serial;

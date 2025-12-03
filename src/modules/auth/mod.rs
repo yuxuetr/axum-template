@@ -9,8 +9,8 @@ pub use handlers::{signin_handler, signup_handler};
 pub use middleware::auth_middleware;
 
 use crate::AppState;
-use axum::routing::post;
 use axum::Router;
+use axum::routing::post;
 
 pub fn auth_router(state: AppState) -> Router {
   Router::new()

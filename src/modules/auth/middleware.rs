@@ -1,4 +1,4 @@
-use crate::{common::auth::verify, AppState};
+use crate::{AppState, common::auth::verify};
 use axum::{
   body::Body,
   extract::State,

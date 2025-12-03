@@ -117,7 +117,7 @@ impl VecExtensions<RoleName> for Vec<RoleIn> {
     self
       .extract_names()
       .iter()
-      .any(|name| RoleName::from_str(name).map_or(false, |rn| rn == role_name))
+      .any(|name| RoleName::from_str(name).is_some_and(|rn| rn == role_name))
   }
 }
 
@@ -135,7 +135,7 @@ impl VecExtensions<PermissionName> for Vec<PermissionIn> {
     self
       .extract_names()
       .iter()
-      .any(|name| PermissionName::from_str(name).map_or(false, |p_name| p_name == permission_name))
+      .any(|name| PermissionName::from_str(name).is_some_and(|p_name| p_name == permission_name))
   }
 }
 

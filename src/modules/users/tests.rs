@@ -1,9 +1,9 @@
 // #[allow(unused_imports)]
 #[cfg(test)]
 mod util_tests {
+  pub use crate::AppState;
   pub use crate::common::auth::*;
   pub use crate::modules::users::*;
-  pub use crate::AppState;
   pub use anyhow::Result;
   use serial_test::serial;
 
@@ -109,10 +109,10 @@ mod util_tests {
 
 #[cfg(test)]
 mod integration_tests {
-  use crate::{get_router, AppState};
+  use crate::{AppState, get_router};
   use anyhow::Result;
-  use axum::http::StatusCode;
   use axum::Router;
+  use axum::http::StatusCode;
   use reqwest::Client;
   use serde_json::json;
   use serial_test::serial;

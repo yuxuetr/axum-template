@@ -1,6 +1,6 @@
 use anyhow::Result;
-use axum::middleware::from_fn_with_state;
 use axum::Router;
+use axum::middleware::from_fn_with_state;
 use sqlx::PgPool;
 use std::ops::Deref;
 use std::sync::Arc;

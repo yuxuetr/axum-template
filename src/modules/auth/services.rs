@@ -1,9 +1,9 @@
 use anyhow::Result;
 
 use super::TokenResponse;
-use crate::common::{sign, verify_password};
 use crate::AppState;
-use crate::{modules::users::User, AppError};
+use crate::common::{sign, verify_password};
+use crate::{AppError, modules::users::User};
 
 impl AppState {
   pub async fn get_token(&self, username: &str, password: &str) -> Result<TokenResponse> {
