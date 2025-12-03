@@ -293,6 +293,7 @@ impl AppState {
   }
 
   pub async fn get_users(&self, limit: i64, offset: i64) -> Result<PaginatedUsers, AppError> {
+    // Optimized approach: fetch users with their basic info and then batch fetch roles/permissions
     let users_info = sqlx::query_as::<_, UserInfo>(
       r#"
       SELECT id, username, created_at, updated_at
@@ -308,12 +309,105 @@ impl AppState {
     .await
     .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
-    let mut users = vec![];
+    if users_info.is_empty() {
+      let total_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
-    for user_info in &users_info {
-      let user = self.get_user_obj_by_user_info(user_info.clone()).await?;
-      users.push(user);
+      return Ok(PaginatedUsers {
+        users: vec![],
+        total_count: total_count.0,
+      });
     }
+
+    // Batch fetch all roles for these users
+    let user_ids: Vec<i32> = users_info.iter().map(|u| u.id).collect();
+    let user_roles_map: std::collections::HashMap<i32, Vec<Role>> = sqlx::query!(
+      r#"
+      SELECT
+        ur.user_id,
+        r.id,
+        r.name,
+        r.created_at,
+        r.updated_at
+      FROM user_roles ur
+      JOIN roles r ON ur.role_id = r.id
+      WHERE ur.user_id = ANY($1)
+      "#,
+      &user_ids
+    )
+    .fetch_all(&self.pool)
+    .await
+    .map_err(|err| AppError::DatabaseError(err.to_string()))?
+    .into_iter()
+    .fold(std::collections::HashMap::new(), |mut map, row| {
+      let role = Role {
+        id: row.id,
+        name: row.name,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+      map.entry(row.user_id).or_insert_with(Vec::new).push(role);
+      map
+    });
+
+    // Batch fetch all permissions for these users
+    let user_permissions_map: std::collections::HashMap<i32, Vec<Permission>> = sqlx::query!(
+      r#"
+      SELECT
+        up.user_id,
+        p.id,
+        p.name,
+        p.created_at,
+        p.updated_at
+      FROM user_permissions up
+      JOIN permissions p ON up.permission_id = p.id
+      WHERE up.user_id = ANY($1)
+      "#,
+      &user_ids
+    )
+    .fetch_all(&self.pool)
+    .await
+    .map_err(|err| AppError::DatabaseError(err.to_string()))?
+    .into_iter()
+    .fold(std::collections::HashMap::new(), |mut map, row| {
+      let permission = Permission {
+        id: row.id,
+        name: row.name,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+      map
+        .entry(row.user_id)
+        .or_insert_with(Vec::new)
+        .push(permission);
+      map
+    });
+
+    // Construct User objects efficiently
+    let users: Vec<User> = users_info
+      .into_iter()
+      .map(|user_info| {
+        let roles = user_roles_map
+          .get(&user_info.id)
+          .cloned()
+          .unwrap_or_default();
+        let permissions = user_permissions_map
+          .get(&user_info.id)
+          .cloned()
+          .unwrap_or_default();
+
+        User::new(
+          UserInfo {
+            password: String::new(), // Not needed for listing
+            ..user_info
+          },
+          roles,
+          permissions,
+        )
+      })
+      .collect();
 
     let total_count: (i64,) = sqlx::query_as(
       r#"

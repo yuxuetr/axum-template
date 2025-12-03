@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::str::FromStr;
 
 pub trait VecExtensions<T: AsRef<str> + Eq> {
   fn extract_ids(&self) -> Vec<i32>;
@@ -44,6 +45,19 @@ pub enum RoleName {
   Admin,
   Moderator,
   User,
+}
+
+impl FromStr for RoleName {
+  type Err = ();
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "Admin" => Ok(RoleName::Admin),
+      "Moderator" => Ok(RoleName::Moderator),
+      "User" => Ok(RoleName::User),
+      _ => Ok(RoleName::User), // Default to User for unknown roles
+    }
+  }
 }
 
 /// permission names
