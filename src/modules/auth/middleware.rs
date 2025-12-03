@@ -22,7 +22,7 @@ pub async fn auth_middleware(
   {
     Ok(TypedHeader(Authorization(bearer))) => {
       let token = bearer.token();
-      match verify(token).await {
+      match verify(token, &state.config) {
         Ok(user) => {
           let mut req = Request::from_parts(parts, body);
           let user = match state.get_user_by_username(&user.user_info.username).await {

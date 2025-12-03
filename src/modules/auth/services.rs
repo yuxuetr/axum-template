@@ -8,7 +8,7 @@ use crate::{modules::users::User, AppError};
 impl AppState {
   pub async fn get_token(&self, username: &str, password: &str) -> Result<TokenResponse> {
     let user = self.verify_user(username, password).await?;
-    let token = sign(user).await?;
+    let token = sign(user, &self.config)?;
     Ok(TokenResponse::new(&token))
   }
 
