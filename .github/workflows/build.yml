@@ -24,6 +24,8 @@ jobs:
         image: postgres:14.5
         env:
           POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: example
         ports:
           - 5432:5432
         # Set health checks to wait until postgres has started
@@ -40,7 +42,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config cmake
+          sudo apt-get install -y pkg-config cmake postgresql-client
       - name: Set BoringSSL environment variables
         run: |
           BORINGSSL_DIR=$(boringssl version -d | cut -d'"' -f2)
@@ -54,7 +56,24 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: install nextest
         uses: taiki-e/install-action@nextest
+      - name: install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features native-tls,postgres
       - uses: Swatinem/rust-cache@v2
+      - name: Set up database environment variables
+        run: |
+          echo "DATABASE_URL=postgres://postgres:postgres@localhost:5432/example" >> $GITHUB_ENV
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          timeout 30 bash -c 'until nc -z localhost 5432; do sleep 1; done'
+      - name: Check database connection
+        run: |
+          psql $DATABASE_URL -c "SELECT 1;" || true
+      - name: Run database migrations
+        run: |
+          sqlx migrate run --database-url $DATABASE_URL || echo "Migrations may have already been applied"
+      - name: Prepare SQLx query cache
+        run: |
+          cargo sqlx prepare --database-url $DATABASE_URL -- --all-targets || true
       - name: Check code format
         run: cargo fmt -- --check
       - name: Check the package for errors
@@ -62,7 +81,7 @@ jobs:
       - name: Lint rust sources
         run: cargo clippy --all-targets --all-features --tests --benches -- -D warnings
       - name: Execute rust tests
-        run: cargo nextest run --all-features || true  # Skip test failures for now
+        run: cargo nextest run --all-features
       - name: Generate a changelog
         uses: orhun/git-cliff-action@v4
         id: git-cliff
