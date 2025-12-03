@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file. See [conven
 ### Documentation
 
 - update CHANGELOG.md and README.md - ([c715533](https://github.com/yuxuetr/rust-template/commit/c715533776fde8e4b062a986115cd69fb650bf42)) - yuxuetr
+- update README.md with latest features and improvements - ([6eeaf29](https://github.com/yuxuetr/rust-template/commit/6eeaf299762cf033d6ab8da45b75f73e01680526)) - yuxuetr
 
 ### Features
 
@@ -40,6 +41,7 @@ All notable changes to this project will be documented in this file. See [conven
 
 - **(axum)** update axum to latest version for better features - ([c41d19a](https://github.com/yuxuetr/rust-template/commit/c41d19acc67359e7048af34ff6a332f7d64cef6d)) - yuxuetr
 - **(deps)** update dependency lock file after optimization changes - ([af44a99](https://github.com/yuxuetr/rust-template/commit/af44a99f141850d60517897e6107d36962ab9f4b)) - yuxuetr
+- **(rust)** upgrade to Rust 2024 edition - ([420f843](https://github.com/yuxuetr/rust-template/commit/420f843c11a03b83e6deeebecf6627347563e976)) - yuxuetr
 - **(sqlx)** upgrade to v0.8.6 to resolve future incompatibility warnings - ([40caf01](https://github.com/yuxuetr/rust-template/commit/40caf0187f492a7b46b1828838952e68fcd1f35d)) - yuxuetr
 
 ### Other
