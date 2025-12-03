@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use uuid::Uuid;
 use validator::ValidationErrors;
 
 #[derive(Debug, Error)]
@@ -71,10 +72,22 @@ impl From<ValidationErrors> for AppError {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ErrorOutput {
   pub error: String,
+  pub error_id: String,
+  pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 impl IntoResponse for AppError {
   fn into_response(self) -> Response {
+    let error_id = Uuid::new_v4().to_string();
+    let error_message = self.to_string();
+
+    // Log the error with tracing for debugging
+    tracing::error!(
+      error_id = %error_id,
+      error = %error_message,
+      "Application error occurred"
+    );
+
     let status = match &self {
       Self::NotFound(_) => StatusCode::NOT_FOUND,
       Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
@@ -91,7 +104,7 @@ impl IntoResponse for AppError {
       Self::UserExisted(_) => StatusCode::UNPROCESSABLE_ENTITY,
     };
 
-    (status, Json(ErrorOutput::new(self.to_string()))).into_response()
+    (status, Json(ErrorOutput::with_id(error_message, error_id))).into_response()
   }
 }
 
@@ -99,6 +112,16 @@ impl ErrorOutput {
   pub fn new(error: impl Into<String>) -> Self {
     Self {
       error: error.into(),
+      error_id: Uuid::new_v4().to_string(),
+      timestamp: chrono::Utc::now(),
+    }
+  }
+
+  pub fn with_id(error: impl Into<String>, error_id: String) -> Self {
+    Self {
+      error: error.into(),
+      error_id,
+      timestamp: chrono::Utc::now(),
     }
   }
 }
