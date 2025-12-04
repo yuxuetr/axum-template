@@ -145,3 +145,25 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://user:password@localhost/db
 ## 博客地址
 
 - [https://yuxuetr.com/blog/2024/08/06/axum-template-01](https://yuxuetr.com/blog/2024/08/06/axum-template-01)
+
+## Changelog
+
+详细的项目变更记录请查看 [CHANGELOG.md](./CHANGELOG.md)
+
+### 最近更新
+
+#### [unreleased] - 2024-12-04
+
+##### 🐛 Bug Fixes
+- **(security)** 修复 idna 安全漏洞 (RUSTSEC-2024-0421) 和测试失败问题
+- 修复集成测试中 HTTP 客户端代理配置导致的 502 错误
+- 替换未维护的 proc-macro-error 依赖为 proc-macro-error2
+- 更新许可证配置以支持新的依赖许可证
+
+##### 📦 Dependencies
+- 升级 validator 从 0.18.1 到 0.20.0
+- 自动更新相关依赖包以解决安全和兼容性问题
+
+##### ✅ Testing
+- 所有 15 个测试通过 (9 个工具测试 + 6 个集成测试)
+- 通过所有 cargo-deny 安全检查
