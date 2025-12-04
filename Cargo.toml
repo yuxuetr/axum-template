@@ -22,7 +22,7 @@ tracing = "0.1.40"
 tracing-appender = "0.2.3"
 tracing-subscriber = {version = "0.3.18", features = ["env-filter"]}
 uuid = { version = "1.8.0", features = ["v4"] }
-validator = { version = "0.18.1", features = ["derive"] }
+validator = { version = "0.20.0", features = ["derive"] }
 
 [build-dependencies]
 anyhow = "1.0.86"

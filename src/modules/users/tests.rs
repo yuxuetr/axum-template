@@ -160,7 +160,7 @@ mod integration_tests {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let client = Client::new();
+    let client = Client::builder().no_proxy().build().unwrap();
     // 3, bob, 123456
     let token = get_token(&client, &addr.to_string()).await?;
 
@@ -196,7 +196,7 @@ mod integration_tests {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let client = Client::new();
+    let client = Client::builder().no_proxy().build().unwrap();
     let token = get_token(&client, &addr.to_string()).await?;
 
     let response = client
@@ -233,7 +233,7 @@ mod integration_tests {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let client = Client::new();
+    let client = Client::builder().no_proxy().build().unwrap();
     let token = get_token(&client, &addr.to_string()).await?;
 
     let response = client
@@ -269,7 +269,7 @@ mod integration_tests {
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    let client = Client::new();
+    let client = Client::builder().no_proxy().build().unwrap();
     let token = get_token(&client, &addr.to_string()).await?;
 
     let response = client

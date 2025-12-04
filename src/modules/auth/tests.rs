@@ -54,7 +54,7 @@ mod integration_tests {
         .unwrap();
     });
 
-    let client = Client::new();
+    let client = Client::builder().no_proxy().build().unwrap();
     let response = client
       .post(format!("http://{}/auth/signup", addr))
       .json(&json!({"username": "xuetrdi", "password": "123456"}))
@@ -83,7 +83,7 @@ mod integration_tests {
     });
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-    let client = Client::new();
+    let client = Client::builder().no_proxy().build().unwrap();
 
     let response = client
       .post(format!("http://{}/auth/signin", addr))
