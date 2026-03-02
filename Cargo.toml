@@ -11,7 +11,7 @@ axum = {version = "0.8", features = ["query", "http2", "tracing", "multipart"]}
 axum-extra = {version = "0.9.3", features = ["typed-header"]}
 chrono = {version = "0.4.38", features = ["serde"]}
 futures = "0.3.30"
-jwt-simple = "0.12.9"
+jsonwebtoken = {version = "10", default-features = false, features = ["rust_crypto", "use_pem"]}
 serde = {version = "1.0.204", features = ["derive"]}
 serde_json = "1.0.121"
 serde_yaml = "0.9.34"
@@ -25,13 +25,12 @@ uuid = { version = "1.8.0", features = ["v4"] }
 validator = { version = "0.20.0", features = ["derive"] }
 
 [build-dependencies]
-anyhow = "1.0.86"
-jwt-simple = "0.12.9"
+ed25519-dalek = {version = "2", features = ["pkcs8", "pem", "rand_core"]}
+pkcs8 = {version = "0.10", features = ["pem"]}
+rand = "0.8"
 
 [dev-dependencies]
 axum-extra = "0.9.3"
-boring = "4.9.1"
-boring-sys = "4.9.1"
 reqwest = {version = "0.12.5", default-features = false, features = ["json", "rustls-tls"]}
 serde_json = "1.0.120"
 serial_test = "3.1.1"

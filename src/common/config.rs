@@ -1,8 +1,7 @@
 use std::fs::read_to_string;
-use std::sync::Arc;
 
 use anyhow::Result;
-use jwt_simple::prelude::*;
+use jsonwebtoken::{DecodingKey, EncodingKey};
 use serde::Deserialize;
 
 #[allow(unused)]
@@ -25,8 +24,8 @@ pub struct AuthConfig {
   pub jwt_duration: u64,
   pub jwt_iss: String,
   pub jwt_aud: String,
-  pub key_pair: Arc<Ed25519KeyPair>,
-  pub public_key: Arc<Ed25519PublicKey>,
+  pub encoding_key: EncodingKey,
+  pub decoding_key: DecodingKey,
 }
 
 impl std::fmt::Debug for AuthConfig {
@@ -37,8 +36,8 @@ impl std::fmt::Debug for AuthConfig {
       .field("jwt_duration", &self.jwt_duration)
       .field("jwt_iss", &self.jwt_iss)
       .field("jwt_aud", &self.jwt_aud)
-      .field("key_pair", &"<hidden>")
-      .field("public_key", &"<hidden>")
+      .field("encoding_key", &"<hidden>")
+      .field("decoding_key", &"<hidden>")
       .finish()
   }
 }
@@ -52,10 +51,10 @@ impl AuthConfig {
     jwt_aud: String,
   ) -> Result<Self> {
     let secret_key_pem = read_to_string(&secret_key_path)?;
-    let key_pair = Ed25519KeyPair::from_pem(&secret_key_pem)?;
+    let encoding_key = EncodingKey::from_ed_pem(secret_key_pem.as_bytes())?;
 
     let public_key_pem = read_to_string(&public_key_path)?;
-    let public_key = Ed25519PublicKey::from_pem(&public_key_pem)?;
+    let decoding_key = DecodingKey::from_ed_pem(public_key_pem.as_bytes())?;
 
     Ok(Self {
       secret_key_path,
@@ -63,8 +62,8 @@ impl AuthConfig {
       jwt_duration,
       jwt_iss,
       jwt_aud,
-      key_pair: Arc::new(key_pair),
-      public_key: Arc::new(public_key),
+      encoding_key,
+      decoding_key,
     })
   }
 }

@@ -5,8 +5,17 @@ use argon2::{
   Argon2,
   password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
-use jwt_simple::prelude::*;
-use std::collections::HashSet;
+use jsonwebtoken::{Algorithm, Header, Validation, decode, encode};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JwtClaims {
+  pub exp: usize,
+  pub iat: usize,
+  pub iss: String,
+  pub aud: String,
+  pub user: User,
+}
 
 pub fn hash_password(password: &str) -> Result<String, AppError> {
   let salt = SaltString::generate(&mut OsRng);
@@ -28,27 +37,24 @@ pub fn verify_password(password: &str, hashed_password: &str) -> Result<bool, Ap
 
 pub fn sign(user: impl Into<User>, config: &AppConfig) -> Result<String, AppError> {
   let user = user.into();
-  let claims =
-    Claims::with_custom_claims::<User>(user, Duration::from_secs(config.auth.jwt_duration));
-
-  let claims = claims
-    .with_issuer(&config.auth.jwt_iss)
-    .with_audience(&config.auth.jwt_aud);
-
-  let token = config.auth.key_pair.sign(claims)?;
+  let now = chrono::Utc::now().timestamp() as usize;
+  let claims = JwtClaims {
+    exp: now + config.auth.jwt_duration as usize,
+    iat: now,
+    iss: config.auth.jwt_iss.clone(),
+    aud: config.auth.jwt_aud.clone(),
+    user,
+  };
+  let header = Header::new(Algorithm::EdDSA);
+  let token = encode(&header, &claims, &config.auth.encoding_key)?;
   Ok(token)
 }
 
 pub fn verify(token: &str, config: &AppConfig) -> Result<User, AppError> {
-  let options = VerificationOptions {
-    allowed_issuers: Some(HashSet::from_strings(&[&config.auth.jwt_iss])),
-    allowed_audiences: Some(HashSet::from_strings(&[&config.auth.jwt_aud])),
-    ..Default::default()
-  };
+  let mut validation = Validation::new(Algorithm::EdDSA);
+  validation.set_issuer(&[&config.auth.jwt_iss]);
+  validation.set_audience(&[&config.auth.jwt_aud]);
 
-  let claims = config
-    .auth
-    .public_key
-    .verify_token::<User>(token, Some(options))?;
-  Ok(claims.custom)
+  let token_data = decode::<JwtClaims>(token, &config.auth.decoding_key, &validation)?;
+  Ok(token_data.claims.user)
 }

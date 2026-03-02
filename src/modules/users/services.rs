@@ -3,7 +3,9 @@ use std::collections::HashSet;
 use crate::AppState;
 use crate::common::errors::AppError;
 use crate::modules::users::dto::{CreateUser, IsWho, UpdateUser, User};
-use crate::modules::users::entity::{Permission, Role, RoleName, UserInfo, VecExtensions};
+use crate::modules::users::entity::{
+  Permission, Role, RoleName, UserInfo, UserPermissionRow, UserRoleRow, VecExtensions,
+};
 
 use chrono::Utc;
 
@@ -320,8 +322,9 @@ impl AppState {
 
     // Batch fetch all roles for these users
     let user_ids: Vec<i32> = users_info.iter().map(|u| u.id).collect();
-    let user_roles_map: std::collections::HashMap<i32, Vec<Role>> = sqlx::query!(
-      r#"
+    let user_roles_map: std::collections::HashMap<i32, Vec<Role>> =
+      sqlx::query_as::<_, UserRoleRow>(
+        r#"
       SELECT
         ur.user_id,
         r.id,
@@ -332,26 +335,27 @@ impl AppState {
       JOIN roles r ON ur.role_id = r.id
       WHERE ur.user_id = ANY($1)
       "#,
-      &user_ids
-    )
-    .fetch_all(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?
-    .into_iter()
-    .fold(std::collections::HashMap::new(), |mut map, row| {
-      let role = Role {
-        id: row.id,
-        name: row.name,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      };
-      map.entry(row.user_id).or_insert_with(Vec::new).push(role);
-      map
-    });
+      )
+      .bind(&user_ids)
+      .fetch_all(&self.pool)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?
+      .into_iter()
+      .fold(std::collections::HashMap::new(), |mut map, row| {
+        let role = Role {
+          id: row.id,
+          name: row.name,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        };
+        map.entry(row.user_id).or_insert_with(Vec::new).push(role);
+        map
+      });
 
     // Batch fetch all permissions for these users
-    let user_permissions_map: std::collections::HashMap<i32, Vec<Permission>> = sqlx::query!(
-      r#"
+    let user_permissions_map: std::collections::HashMap<i32, Vec<Permission>> =
+      sqlx::query_as::<_, UserPermissionRow>(
+        r#"
       SELECT
         up.user_id,
         p.id,
@@ -362,25 +366,25 @@ impl AppState {
       JOIN permissions p ON up.permission_id = p.id
       WHERE up.user_id = ANY($1)
       "#,
-      &user_ids
-    )
-    .fetch_all(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?
-    .into_iter()
-    .fold(std::collections::HashMap::new(), |mut map, row| {
-      let permission = Permission {
-        id: row.id,
-        name: row.name,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      };
-      map
-        .entry(row.user_id)
-        .or_insert_with(Vec::new)
-        .push(permission);
-      map
-    });
+      )
+      .bind(&user_ids)
+      .fetch_all(&self.pool)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?
+      .into_iter()
+      .fold(std::collections::HashMap::new(), |mut map, row| {
+        let permission = Permission {
+          id: row.id,
+          name: row.name,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        };
+        map
+          .entry(row.user_id)
+          .or_insert_with(Vec::new)
+          .push(permission);
+        map
+      });
 
     // Construct User objects efficiently
     let users: Vec<User> = users_info

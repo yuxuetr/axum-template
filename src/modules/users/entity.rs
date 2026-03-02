@@ -3,6 +3,26 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::str::FromStr;
 
+/// Helper row type for batch fetching roles with user_id
+#[derive(Clone, Debug, FromRow)]
+pub struct UserRoleRow {
+  pub user_id: i32,
+  pub id: i32,
+  pub name: String,
+  pub created_at: DateTime<Utc>,
+  pub updated_at: DateTime<Utc>,
+}
+
+/// Helper row type for batch fetching permissions with user_id
+#[derive(Clone, Debug, FromRow)]
+pub struct UserPermissionRow {
+  pub user_id: i32,
+  pub id: i32,
+  pub name: String,
+  pub created_at: DateTime<Utc>,
+  pub updated_at: DateTime<Utc>,
+}
+
 pub trait VecExtensions<T: AsRef<str> + Eq> {
   fn extract_ids(&self) -> Vec<i32>;
   fn extract_names(&self) -> Vec<String>;
