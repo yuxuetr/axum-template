@@ -1,12 +1,13 @@
 use super::TokenResponse;
+use crate::AppError;
 use crate::AppState;
 use crate::common::{sign, verify_password};
-use crate::{AppError, modules::users::User};
+use crate::modules::users::User;
 
 impl AppState {
   pub async fn get_token(&self, username: &str, password: &str) -> Result<TokenResponse, AppError> {
     let user = self.verify_user(username, password).await?;
-    let token = sign(user, &self.config)?;
+    let token = sign(user.user_info.id, &self.config)?;
     Ok(TokenResponse::new(&token))
   }
 

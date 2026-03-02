@@ -96,7 +96,7 @@ struct AuthConfigRaw {
 impl AppConfig {
   pub fn from_file(file_path: &str) -> Result<Self> {
     let config_str = read_to_string(file_path)?;
-    let config_raw: AppConfigRaw = serde_yaml::from_str(&config_str)?;
+    let config_raw: AppConfigRaw = serde_yaml_ng::from_str(&config_str)?;
 
     let auth_config = AuthConfig::new(
       config_raw.auth.secret_key,
@@ -106,9 +106,15 @@ impl AppConfig {
       config_raw.auth.jwt_aud,
     )?;
 
+    // Allow DATABASE_URL env var to override config file
+    let mut database = config_raw.database;
+    if let Ok(url) = std::env::var("DATABASE_URL") {
+      database.db_url = url;
+    }
+
     Ok(Self {
       server: config_raw.server,
-      database: config_raw.database,
+      database,
       auth: auth_config,
     })
   }

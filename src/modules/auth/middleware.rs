@@ -22,13 +22,12 @@ pub async fn auth_middleware(
     Some(auth_str) => {
       if let Some(bearer_str) = auth_str.strip_prefix("Bearer ") {
         match verify(bearer_str, &state.config) {
-          Ok(user) => {
-            let user = match state.get_user_by_username(&user.user_info.username).await {
+          Ok(user_id) => {
+            let user = match state.get_user_by_id(user_id).await {
               Ok(user) => user,
               Err(e) => {
-                let msg = format!("user not exists or removed: {:?}", e);
-                warn!(msg);
-                return (StatusCode::FORBIDDEN, msg).into_response();
+                warn!(user_id, error = ?e, "user not exists or removed");
+                return (StatusCode::FORBIDDEN, "user not exists or removed").into_response();
               }
             };
             let mut req = req;
@@ -36,21 +35,22 @@ pub async fn auth_middleware(
             next.run(req).await
           }
           Err(e) => {
-            let msg = format!("verify token failed: {:?}", e);
-            warn!(msg);
-            (StatusCode::FORBIDDEN, msg).into_response()
+            warn!(error = ?e, "verify token failed");
+            (StatusCode::UNAUTHORIZED, "invalid or expired token").into_response()
           }
         }
       } else {
-        let msg = "Invalid Authorization header format".to_string();
-        warn!(msg);
-        (StatusCode::UNAUTHORIZED, msg).into_response()
+        warn!("Invalid Authorization header format");
+        (
+          StatusCode::UNAUTHORIZED,
+          "Invalid Authorization header format",
+        )
+          .into_response()
       }
     }
     None => {
-      let msg = "Missing Authorization header".to_string();
-      warn!(msg);
-      (StatusCode::UNAUTHORIZED, msg).into_response()
+      warn!("Missing Authorization header");
+      (StatusCode::UNAUTHORIZED, "Missing Authorization header").into_response()
     }
   }
 }

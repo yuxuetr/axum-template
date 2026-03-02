@@ -88,23 +88,30 @@ impl IntoResponse for AppError {
       "Application error occurred"
     );
 
-    let status = match &self {
-      Self::NotFound(_) => StatusCode::NOT_FOUND,
-      Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
-      Self::Forbidden(_) => StatusCode::FORBIDDEN,
-      Self::BadRequest(_) => StatusCode::BAD_REQUEST,
-      Self::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
-      Self::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-      Self::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-      Self::PasswordHashError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-      Self::SqlxError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-      Self::JwtError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-      Self::PasswordError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-      Self::IOError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-      Self::UserExisted(_) => StatusCode::UNPROCESSABLE_ENTITY,
+    let (status, client_message) = match &self {
+      Self::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+      Self::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
+      Self::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
+      Self::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+      Self::ValidationError(msg) => (StatusCode::UNPROCESSABLE_ENTITY, msg.clone()),
+      Self::PasswordError(msg) => (StatusCode::UNPROCESSABLE_ENTITY, msg.clone()),
+      Self::UserExisted(msg) => (StatusCode::CONFLICT, msg.clone()),
+      Self::JwtError(_) => (
+        StatusCode::UNAUTHORIZED,
+        "invalid or expired token".to_string(),
+      ),
+      // Internal errors: never leak details to client
+      Self::InternalServerError
+      | Self::DatabaseError(_)
+      | Self::SqlxError(_)
+      | Self::PasswordHashError(_)
+      | Self::IOError(_) => (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "internal server error".to_string(),
+      ),
     };
 
-    (status, Json(ErrorOutput::with_id(error_message, error_id))).into_response()
+    (status, Json(ErrorOutput::with_id(client_message, error_id))).into_response()
   }
 }
 

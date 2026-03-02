@@ -46,7 +46,7 @@ mod integration_tests {
   async fn signup_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 
-    let listener = TcpListener::bind("127.0.0.1:29998").await?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     tokio::spawn(async move {
       axum::serve(listener, app.into_make_service())
@@ -70,7 +70,7 @@ mod integration_tests {
   async fn signin_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 
-    let listener = TcpListener::bind("127.0.0.1:29999").await?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {

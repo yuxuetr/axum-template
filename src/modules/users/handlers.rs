@@ -12,10 +12,17 @@ use tracing::info;
 use validator::Validate;
 
 pub async fn delete_user_handler(
+  Extension(claims): Extension<User>,
   State(state): State<AppState>,
   Path(user_id): Path<i32>,
 ) -> Result<impl IntoResponse, AppError> {
   info!("Users Handler::delete user: {:?}", user_id);
+  let is_who = state.get_role_by_claim(&claims, user_id).await?;
+  if !is_who.is_admin {
+    return Err(AppError::Forbidden(
+      "only admin can delete users".to_string(),
+    ));
+  }
   state.delete_user(user_id).await?;
   Ok(StatusCode::OK)
 }
@@ -63,17 +70,14 @@ pub async fn get_users_handler(
 ) -> Result<impl IntoResponse, AppError> {
   params.validate()?;
   info!("Users Handler::get users");
-  info!(
-    "Users Handler::get users: claims user_id: {:?}",
-    claims.user_info.id
-  );
   let is_who = state
     .get_role_by_claim(&claims, claims.user_info.id)
     .await?;
-  info!("Users Handler::get users: is_who: {:?}", is_who);
-  // Only admin and moderator can get all users
-  if !is_who.is_own_user && !is_who.is_admin && !is_who.is_moderator {
-    return Err(AppError::BadRequest("Permission denied".to_string()));
+  // Only admin and moderator can list all users
+  if !is_who.is_admin && !is_who.is_moderator {
+    return Err(AppError::Forbidden(
+      "only admin or moderator can list users".to_string(),
+    ));
   }
   let PaginationParams { limit, offset } = params;
   let users = state.get_users(limit, offset).await?;

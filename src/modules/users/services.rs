@@ -172,7 +172,7 @@ impl AppState {
 
   pub async fn update_user(&self, user_id: i32, input: UpdateUser) -> Result<User, AppError> {
     if !input.is_own_user && !input.is_admin && !input.is_moderator {
-      return Err(AppError::BadRequest("Permission denied".to_string()));
+      return Err(AppError::Forbidden("Permission denied".to_string()));
     }
 
     match self.is_user_exists_by_id(user_id).await? {
@@ -187,7 +187,52 @@ impl AppState {
 
     let user = self.get_user_by_id(user_id).await?;
 
-    // only the user itself can update its user info
+    // Admin: can update roles, permissions, and own info when updating self
+    if input.is_admin {
+      if input.is_own_user {
+        let hashed_password = if let Some(password) = input.password {
+          hash_password(&password)?
+        } else {
+          user.user_info.password.clone()
+        };
+        let _updated_user_info: UserInfo = sqlx::query_as(
+          r#"
+          UPDATE users
+          SET username = $1, password = $2, updated_at = $3
+          WHERE id = $4
+          RETURNING id, username, created_at, updated_at
+          "#,
+        )
+        .bind(input.username.unwrap_or(user.user_info.username.clone()))
+        .bind(hashed_password)
+        .bind(Utc::now())
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+      }
+      if let Some(roles) = input.roles {
+        self.update_roles(roles.extract_ids(), user_id).await?;
+      }
+      if let Some(permissions) = input.permissions {
+        self
+          .update_permissions(permissions.extract_ids(), user_id)
+          .await?;
+      }
+      return self.get_user_by_id(user_id).await;
+    }
+
+    // Moderator: can update user permissions only, not info or roles
+    if input.is_moderator {
+      if let Some(permissions) = input.permissions {
+        self
+          .update_permissions(permissions.extract_ids(), user_id)
+          .await?;
+      }
+      return self.get_user_by_id(user_id).await;
+    }
+
+    // Own user: can update own info (username/password) only
     if input.is_own_user {
       let hashed_password = if let Some(password) = input.password {
         hash_password(&password)?
@@ -211,29 +256,6 @@ impl AppState {
       .map_err(|err| AppError::DatabaseError(err.to_string()))?;
       return self.get_user_obj_by_user_info(updated_user_info).await;
     }
-
-    // modderator can update user permission but cannot update others user info and roles
-    if input.is_moderator {
-      if let Some(permissions) = input.permissions {
-        self
-          .update_permissions(permissions.extract_ids(), user_id)
-          .await?;
-      }
-      return self.get_user_by_id(user_id).await;
-    }
-
-    // admin can update user roles, and permissions but cannot update others user info
-    if input.is_admin {
-      if let Some(roles) = input.roles {
-        self.update_roles(roles.extract_ids(), user_id).await?;
-      }
-      if let Some(permissions) = input.permissions {
-        self
-          .update_permissions(permissions.extract_ids(), user_id)
-          .await?;
-      }
-      return self.get_user_by_id(user_id).await;
-    };
 
     Ok(user)
   }

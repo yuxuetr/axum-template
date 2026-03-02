@@ -146,7 +146,7 @@ mod integration_tests {
   async fn delete_user_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 
-    let listener = TcpListener::bind("127.0.0.1:40000").await?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
 
     let (tx, rx) = oneshot::channel();
@@ -181,7 +181,7 @@ mod integration_tests {
   async fn get_users_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 
-    let listener = TcpListener::bind("127.0.0.1:40003").await?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
 
     let (tx, rx) = oneshot::channel();
@@ -219,7 +219,7 @@ mod integration_tests {
   async fn get_user_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 
-    let listener = TcpListener::bind("127.0.0.1:40002").await?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
 
     let (tx, rx) = oneshot::channel();
@@ -255,7 +255,7 @@ mod integration_tests {
   async fn admin_cannot_update_user_info_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 
-    let listener = TcpListener::bind("127.0.0.1:40004").await?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {
