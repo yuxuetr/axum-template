@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file. See [conven
 - update CHANGELOG.md and README.md - ([c715533](https://github.com/yuxuetr/rust-template/commit/c715533776fde8e4b062a986115cd69fb650bf42)) - yuxuetr
 - update README.md with latest features and improvements - ([6eeaf29](https://github.com/yuxuetr/rust-template/commit/6eeaf299762cf033d6ab8da45b75f73e01680526)) - yuxuetr
 - update CHANGELOG.md with Rust 2024 edition entry - ([39f3dd6](https://github.com/yuxuetr/rust-template/commit/39f3dd627cb126f96e284ad68cf4217096100813)) - yuxuetr
+- update CHANGELOG.md and README.md with latest fixes - ([9d3f4a5](https://github.com/yuxuetr/rust-template/commit/9d3f4a5e7c4e57d39939f6e7ecc51626520a3d12)) - yuxuetr
 
 ### Features
 
@@ -60,7 +61,9 @@ All notable changes to this project will be documented in this file. See [conven
 
 ### Refactoring
 
+- **(auth)** migrate JWT library from jwt-simple to jsonwebtoken - ([0621fd8](https://github.com/yuxuetr/rust-template/commit/0621fd8e6455461f7483223d713d23ec8086afb4)) - yuxuetr
 - refactor util test in util_tests mod - ([5deebad](https://github.com/yuxuetr/rust-template/commit/5deebad1706f4e82f8e9edd49452206cebbb2710)) - yuxuetr
+- improve security, permissions and dependency cleanup - ([bab8c01](https://github.com/yuxuetr/rust-template/commit/bab8c0133301704a6fae8888efcc05ae340d3b70)) - yuxuetr
 
 ### Style
 
