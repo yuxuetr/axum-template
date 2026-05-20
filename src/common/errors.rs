@@ -54,8 +54,8 @@ impl From<ValidationErrors> for AppError {
   fn from(errors: ValidationErrors) -> Self {
     let errors = errors
       .field_errors()
-      .iter()
-      .flat_map(|(_, errors)| {
+      .values()
+      .flat_map(|errors| {
         errors.iter().map(|error| {
           if let Some(message) = &error.message {
             message.clone().into_owned()
