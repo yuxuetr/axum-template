@@ -22,8 +22,8 @@
 ### 本地开发
 ```bash
 # 1. 克隆项目
-git clone https://github.com/yuxuetr/rust-template.git
-cd rust-template
+git clone https://github.com/yuxuetr/axum-template.git
+cd axum-template
 
 # 2. 创建数据库
 createdb axum_template
@@ -48,7 +48,7 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://user:password@localhost/db
 
 ## 基础开发环境搭建
 
-可以参考我的 Rust 项目模版，[地址](https://github.com/yuxuetr/rust-template)
+可以参考我的 Rust 项目模版，[地址](https://github.com/yuxuetr/axum-template)
 
 ## 基于类似 Nest.js 的项目组织方式
 
