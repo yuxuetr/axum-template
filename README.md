@@ -132,6 +132,37 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://user:password@localhost/db
 - **错误追踪**: UUID错误标识符，便于日志分析和问题定位
 - **健康监控**: 全面的应用和数据库健康状态检查
 
+### ✅ 请求参数自动校验
+- **通用校验提取器**: 提供 `ValidatedJson<T>`、`ValidatedQuery<T>`、`ValidatedForm<T>`、`ValidatedPath<T>`
+- **DTO 声明校验规则**: 请求 DTO 只需要实现 `Deserialize` 和 `Validate`
+- **Handler 保持业务纯净**: 使用 validated extractor 后，不需要在每个 handler 中手动调用 `input.validate()?`
+- **统一错误语义**: 反序列化或提取失败返回 `400 Bad Request`，DTO 校验失败返回 `422 Unprocessable Entity`
+
+示例:
+
+```rust
+use crate::common::{ValidatedJson, ValidatedQuery};
+
+pub async fn signup_handler(
+  State(state): State<AppState>,
+  ValidatedJson(payload): ValidatedJson<CreateUser>,
+) -> Result<impl IntoResponse, AppError> {
+  let user = state.create_user(payload).await?;
+  Ok((StatusCode::CREATED, Json(user)))
+}
+
+pub async fn get_users_handler(
+  State(state): State<AppState>,
+  ValidatedQuery(params): ValidatedQuery<PaginationParams>,
+) -> Result<impl IntoResponse, AppError> {
+  let PaginationParams { limit, offset } = params;
+  let users = state.get_users(limit, offset).await?;
+  Ok((StatusCode::OK, Json(users)))
+}
+```
+
+对于需要校验的业务输入，优先使用 `Validated*` 提取器；不需要校验的基础参数仍可继续使用 Axum 原生提取器。文件上传等 multipart 场景通常包含文件大小、MIME、流式读取等业务约束，建议按具体业务单独处理。
+
 ### 🧪 测试体系
 - **单元测试**: 覆盖核心业务逻辑
 - **集成测试**: 端到端API测试
@@ -180,4 +211,4 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://user:password@localhost/db
 
 ##### ✅ 测试
 - 集成测试端口从硬编码改为动态分配（127.0.0.1:0）
-- 所有 15 个测试通过，所有 cargo-deny 安全检查通过
+- 所有 25 个测试通过，所有 cargo-deny 安全检查通过
