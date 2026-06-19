@@ -1,5 +1,6 @@
 use axum::{
   Json,
+  extract::rejection::{FormRejection, JsonRejection, PathRejection, QueryRejection},
   http::StatusCode,
   response::{IntoResponse, Response},
 };
@@ -69,6 +70,31 @@ impl From<ValidationErrors> for AppError {
     AppError::ValidationError(errors)
   }
 }
+
+impl From<JsonRejection> for AppError {
+  fn from(err: JsonRejection) -> Self {
+    AppError::BadRequest(err.to_string())
+  }
+}
+
+impl From<QueryRejection> for AppError {
+  fn from(err: QueryRejection) -> Self {
+    AppError::BadRequest(err.to_string())
+  }
+}
+
+impl From<FormRejection> for AppError {
+  fn from(err: FormRejection) -> Self {
+    AppError::BadRequest(err.to_string())
+  }
+}
+
+impl From<PathRejection> for AppError {
+  fn from(err: PathRejection) -> Self {
+    AppError::BadRequest(err.to_string())
+  }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ErrorOutput {
   pub error: String,

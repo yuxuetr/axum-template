@@ -1,20 +1,15 @@
+use crate::common::extractors::ValidatedJson;
 use crate::modules::users::CreateUser;
 use crate::{AppError, AppState};
-use axum::{
-  extract::{Json, State},
-  http::StatusCode,
-  response::IntoResponse,
-};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use tracing::info;
-use validator::Validate;
 
 use super::TokenRequest;
 
 pub async fn signup_handler(
   State(state): State<AppState>,
-  Json(payload): Json<CreateUser>,
+  ValidatedJson(payload): ValidatedJson<CreateUser>,
 ) -> Result<impl IntoResponse, AppError> {
-  payload.validate()?;
   info!("Auth Handler::create user: input: {:?}", payload);
   let user = state.create_user(payload).await?;
   Ok((StatusCode::CREATED, Json(user)))
@@ -22,9 +17,8 @@ pub async fn signup_handler(
 
 pub async fn signin_handler(
   State(state): State<AppState>,
-  Json(payload): Json<TokenRequest>,
+  ValidatedJson(payload): ValidatedJson<TokenRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-  payload.validate()?;
   info!("Auth Handler::get token: username: {:?}", payload.username);
   let token = state
     .get_token(&payload.username, &payload.password)

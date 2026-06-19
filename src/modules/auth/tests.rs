@@ -67,6 +67,37 @@ mod integration_tests {
 
   #[tokio::test]
   #[serial]
+  async fn signup_handler_rejects_invalid_input_test() -> Result<()> {
+    let (_tdb, app) = setup_test_app().await?;
+
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let addr = listener.local_addr()?;
+    let (tx, rx) = oneshot::channel();
+    tokio::spawn(async move {
+      axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(async {
+          rx.await.ok();
+        })
+        .await
+        .unwrap();
+    });
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    let client = Client::builder().no_proxy().build().unwrap();
+    let response = client
+      .post(format!("http://{}/auth/signup", addr))
+      .json(&json!({"username": "xu", "password": "123456"}))
+      .send()
+      .await?;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    tx.send(()).unwrap();
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  #[serial]
   async fn signin_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 

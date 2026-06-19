@@ -1,15 +1,15 @@
 use super::{PaginationParams, UpdateUser, UpdateUserOptions, User};
 use crate::AppState;
 use crate::common::errors::AppError;
+use crate::common::extractors::{ValidatedJson, ValidatedQuery};
 
 use axum::{
   Extension, Json,
-  extract::{Path, Query, State},
+  extract::{Path, State},
   http::StatusCode,
   response::IntoResponse,
 };
 use tracing::info;
-use validator::Validate;
 
 pub async fn delete_user_handler(
   Extension(claims): Extension<User>,
@@ -31,9 +31,8 @@ pub async fn update_user_handler(
   Extension(claims): Extension<User>,
   State(state): State<AppState>,
   Path(user_id): Path<i32>,
-  Json(input): Json<UpdateUserOptions>,
+  ValidatedJson(input): ValidatedJson<UpdateUserOptions>,
 ) -> Result<impl IntoResponse, AppError> {
-  input.validate()?;
   info!("Users Handler::update user: user_id: {:?}", user_id);
   info!("Users Handler::update user: input: {:?}", input);
   let is_who = state.get_role_by_claim(&claims, user_id).await?;
@@ -66,9 +65,8 @@ pub async fn get_user_handler(
 pub async fn get_users_handler(
   Extension(claims): Extension<User>,
   State(state): State<AppState>,
-  Query(params): Query<PaginationParams>,
+  ValidatedQuery(params): ValidatedQuery<PaginationParams>,
 ) -> Result<impl IntoResponse, AppError> {
-  params.validate()?;
   info!("Users Handler::get users");
   let is_who = state
     .get_role_by_claim(&claims, claims.user_info.id)

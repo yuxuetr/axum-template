@@ -216,6 +216,40 @@ mod integration_tests {
 
   #[tokio::test]
   #[serial]
+  async fn get_users_handler_rejects_invalid_query_test() -> Result<()> {
+    let (_tdb, app) = setup_test_app().await?;
+
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let addr = listener.local_addr()?;
+
+    let (tx, rx) = oneshot::channel();
+
+    tokio::spawn(async move {
+      axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+          rx.await.ok();
+        })
+        .await
+        .unwrap();
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let client = Client::builder().no_proxy().build().unwrap();
+    let token = get_token(&client, &addr.to_string()).await?;
+
+    let response = client
+      .get(format!("http://{}/users?limit=0&offset=0", addr))
+      .header("Authorization", format!("Bearer {}", token))
+      .send()
+      .await?;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    tx.send(()).unwrap();
+    Ok(())
+  }
+
+  #[tokio::test]
+  #[serial]
   async fn get_user_handler_test() -> Result<()> {
     let (_tdb, app) = setup_test_app().await?;
 
