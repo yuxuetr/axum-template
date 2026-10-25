@@ -38,8 +38,8 @@ pub enum AppError {
   #[error("password error: {0}")]
   PasswordError(String),
 
-  #[error("sql error: {0}")]
-  SqlxError(#[from] sqlx::Error),
+  #[error("db error: {0}")]
+  DbError(#[from] sea_orm::DbErr),
 
   #[error("jwt error: {0}")]
   JwtError(#[from] jsonwebtoken::errors::Error),
@@ -129,7 +129,7 @@ impl IntoResponse for AppError {
       // Internal errors: never leak details to client
       Self::InternalServerError
       | Self::DatabaseError(_)
-      | Self::SqlxError(_)
+      | Self::DbError(_)
       | Self::PasswordHashError(_)
       | Self::IOError(_) => (
         StatusCode::INTERNAL_SERVER_ERROR,

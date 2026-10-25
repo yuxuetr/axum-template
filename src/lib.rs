@@ -1,7 +1,7 @@
 use anyhow::Result;
 use axum::Router;
 use axum::middleware::from_fn_with_state;
-use sqlx::PgPool;
+use sea_orm::{Database, DatabaseConnection};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -26,7 +26,7 @@ pub async fn get_router(state: AppState) -> Result<Router, AppError> {
 #[derive(Clone, Debug)]
 pub struct AppStateInner {
   pub config: AppConfig,
-  pub pool: PgPool,
+  pub db: DatabaseConnection,
 }
 
 #[derive(Clone, Debug)]
@@ -35,16 +35,16 @@ pub struct AppState {
 }
 
 impl AppState {
-  pub fn new(config: AppConfig, pool: PgPool) -> Self {
+  pub fn new(config: AppConfig, db: DatabaseConnection) -> Self {
     Self {
-      inner: Arc::new(AppStateInner { config, pool }),
+      inner: Arc::new(AppStateInner { config, db }),
     }
   }
 
   pub async fn init_state() -> Result<AppState> {
     let config = AppConfig::from_file("app.yaml")?;
-    let pool = PgPool::connect(&config.database.db_url).await?;
-    let state = AppState::new(config, pool);
+    let db = Database::connect(&config.database.db_url).await?;
+    let state = AppState::new(config, db);
     Ok(state)
   }
 }
@@ -62,32 +62,42 @@ impl Deref for AppState {
 #[cfg(test)]
 mod test_util {
   use super::*;
-  use sqlx::{Executor, PgPool};
+  use sea_orm::{ConnectionTrait, SqlxPostgresConnector, TransactionTrait};
   use sqlx_db_tester::TestPg;
 
   impl AppState {
     pub async fn init_test_state() -> Result<(TestPg, AppState), AppError> {
-      let config = AppConfig::from_file("app.yaml").map_err(|e| AppError::InternalServerError)?;
-      let pos = config.database.db_url.rfind('/').unwrap();
+      let config = AppConfig::from_file("app.yaml").map_err(|_| AppError::InternalServerError)?;
+      let pos = config
+        .database
+        .db_url
+        .rfind('/')
+        .ok_or(AppError::InternalServerError)?;
       let db_url = config.database.db_url[..pos].to_string();
       let tdb = TestPg::new(db_url, std::path::Path::new("./migrations"));
       let pool = tdb.get_pool().await;
+      let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
 
       // test_data.sql start
       let sql = include_str!("../fixtures/test_data.sql").split(';');
-      let mut ts = pool.begin().await.expect("begin transaction failed");
+      let ts = db
+        .begin()
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
       for s in sql {
         if s.trim().is_empty() {
           continue;
         }
-        ts.execute(s).await.expect("execute sql failed");
+        ts.execute_unprepared(s)
+          .await
+          .map_err(|e| AppError::DatabaseError(e.to_string()))?;
       }
-      ts.commit().await.expect("commit transaction failed");
+      ts.commit()
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
       // test_data.sql end
 
-      let state = Self {
-        inner: Arc::new(AppStateInner { config, pool }),
-      };
+      let state = Self::new(config, db);
       Ok((tdb, state))
     }
   }
