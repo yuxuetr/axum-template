@@ -4,11 +4,15 @@ on:
   push:
     branches:
       - main
+      - seaorm
+      - toasty
     tags:
       - v*
   pull_request:
     branches:
       - main
+      - seaorm
+      - toasty
 
 permissions:
   contents: write
@@ -45,21 +49,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config cmake postgresql-client
-      - name: Set BoringSSL environment variables
-        run: |
-          BORINGSSL_DIR=$(boringssl version -d | cut -d'"' -f2)
-          echo "BORINGSSL_DIR=$BORINGSSL_DIR" >> $GITHUB_ENV
-          echo "BORINGSSL_INCLUDE_DIR=$BORINGSSL_DIR/include" >> $GITHUB_ENV
-          echo "BORINGSSL_LIB_DIR=$BORINGSSL_DIR/lib" >> $GITHUB_ENV
-          echo "DEP_BORINGSSL_INCLUDE=$BORINGSSL_DIR/include" >> $GITHUB_ENV
       - name: Install Rust
         run: rustup toolchain install stable --component llvm-tools-preview
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: install nextest
         uses: taiki-e/install-action@nextest
-      - name: install sqlx-cli
-        run: cargo install sqlx-cli --no-default-features --features native-tls,postgres
       - uses: Swatinem/rust-cache@v2
       - name: Set up database environment variables
         run: |
@@ -72,10 +67,9 @@ jobs:
           psql $DATABASE_URL -c "SELECT 1;" || true
       - name: Run database migrations
         run: |
-          sqlx migrate run --database-url $DATABASE_URL || echo "Migrations may have already been applied"
-      - name: Prepare SQLx query cache
-        run: |
-          cargo sqlx prepare --database-url $DATABASE_URL -- --all-targets || true
+          for f in migrations/*.sql; do
+            psql "$DATABASE_URL" -f "$f"
+          done
       - name: Check code format
         run: cargo fmt -- --check
       - name: Check the package for errors
