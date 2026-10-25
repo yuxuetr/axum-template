@@ -1,27 +1,6 @@
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use std::str::FromStr;
-
-/// Helper row type for batch fetching roles with user_id
-#[derive(Clone, Debug, FromRow)]
-pub struct UserRoleRow {
-  pub user_id: i32,
-  pub id: i32,
-  pub name: String,
-  pub created_at: DateTime<Utc>,
-  pub updated_at: DateTime<Utc>,
-}
-
-/// Helper row type for batch fetching permissions with user_id
-#[derive(Clone, Debug, FromRow)]
-pub struct UserPermissionRow {
-  pub user_id: i32,
-  pub id: i32,
-  pub name: String,
-  pub created_at: DateTime<Utc>,
-  pub updated_at: DateTime<Utc>,
-}
 
 pub trait VecExtensions<T: AsRef<str> + Eq> {
   fn extract_ids(&self) -> Vec<i32>;
@@ -30,33 +9,96 @@ pub trait VecExtensions<T: AsRef<str> + Eq> {
 }
 
 /// users table
-#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, toasty::Model)]
+#[table = "users"]
 pub struct UserInfo {
+  #[key]
+  #[auto]
   pub id: i32,
+  #[unique]
   pub username: String,
-  #[sqlx(default)]
   #[serde(skip)]
+  #[default(String::new())]
   pub password: String,
-  pub created_at: DateTime<Utc>,
-  pub updated_at: DateTime<Utc>,
+  #[auto]
+  pub created_at: Timestamp,
+  #[auto]
+  pub updated_at: Timestamp,
 }
 
 /// roles table
-#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, toasty::Model)]
+#[table = "roles"]
 pub struct Role {
+  #[key]
+  #[auto]
   pub id: i32,
+  #[unique]
   pub name: String,
-  pub created_at: DateTime<Utc>,
-  pub updated_at: DateTime<Utc>,
+  #[auto]
+  pub created_at: Timestamp,
+  #[auto]
+  pub updated_at: Timestamp,
 }
 
 /// permissions table
-#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, toasty::Model)]
+#[table = "permissions"]
 pub struct Permission {
+  #[key]
+  #[auto]
   pub id: i32,
+  #[unique]
   pub name: String,
-  pub created_at: DateTime<Utc>,
-  pub updated_at: DateTime<Utc>,
+  #[auto]
+  pub created_at: Timestamp,
+  #[auto]
+  pub updated_at: Timestamp,
+}
+
+/// user_roles table
+#[derive(Clone, Debug, Deserialize, Serialize, toasty::Model)]
+#[table = "user_roles"]
+#[key(user_id, role_id)]
+pub struct UserRole {
+  #[index]
+  pub user_id: i32,
+  #[index]
+  pub role_id: i32,
+  #[auto]
+  pub created_at: Timestamp,
+  #[auto]
+  pub updated_at: Timestamp,
+}
+
+/// role_permissions table
+#[derive(Clone, Debug, Deserialize, Serialize, toasty::Model)]
+#[table = "role_permissions"]
+#[key(role_id, permission_id)]
+pub struct RolePermission {
+  #[index]
+  pub role_id: i32,
+  #[index]
+  pub permission_id: i32,
+  #[auto]
+  pub created_at: Timestamp,
+  #[auto]
+  pub updated_at: Timestamp,
+}
+
+/// user_permissions table
+#[derive(Clone, Debug, Deserialize, Serialize, toasty::Model)]
+#[table = "user_permissions"]
+#[key(user_id, permission_id)]
+pub struct UserPermission {
+  #[index]
+  pub user_id: i32,
+  #[index]
+  pub permission_id: i32,
+  #[auto]
+  pub created_at: Timestamp,
+  #[auto]
+  pub updated_at: Timestamp,
 }
 
 /// role names
@@ -103,8 +145,8 @@ impl UserInfo {
       id: 0,
       username: username.to_string(),
       password: password.to_string(),
-      created_at: Utc::now(),
-      updated_at: Utc::now(),
+      created_at: Timestamp::now(),
+      updated_at: Timestamp::now(),
     }
   }
 }
@@ -114,8 +156,8 @@ impl Role {
     Self {
       id,
       name: role.to_string(),
-      created_at: Utc::now(),
-      updated_at: Utc::now(),
+      created_at: Timestamp::now(),
+      updated_at: Timestamp::now(),
     }
   }
 }
@@ -125,8 +167,8 @@ impl Permission {
     Self {
       id,
       name: permission.to_string(),
-      created_at: Utc::now(),
-      updated_at: Utc::now(),
+      created_at: Timestamp::now(),
+      updated_at: Timestamp::now(),
     }
   }
 }

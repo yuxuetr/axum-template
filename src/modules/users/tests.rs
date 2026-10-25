@@ -109,6 +109,7 @@ mod util_tests {
 
 #[cfg(test)]
 mod integration_tests {
+  use crate::test_util::TestPg;
   use crate::{AppState, get_router};
   use anyhow::Result;
   use axum::Router;
@@ -116,7 +117,6 @@ mod integration_tests {
   use reqwest::Client;
   use serde_json::json;
   use serial_test::serial;
-  use sqlx_db_tester::TestPg;
   use tokio::net::TcpListener;
   use tokio::sync::oneshot;
   use tokio::time::Duration;
@@ -167,7 +167,7 @@ mod integration_tests {
     // delete user
     let response = client
       .delete(format!("http://{}/users/{}", addr, 3))
-      .header("Authorization", format!("Bearer {}", &token))
+      .header("Authorization", format!("Bearer {}", token))
       .send()
       .await?;
     assert_eq!(response.status(), StatusCode::OK);

@@ -1,13 +1,11 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::AppState;
 use crate::common::errors::AppError;
 use crate::modules::users::dto::{CreateUser, IsWho, UpdateUser, User};
 use crate::modules::users::entity::{
-  Permission, Role, RoleName, UserInfo, UserPermissionRow, UserRoleRow, VecExtensions,
+  Permission, Role, RoleName, RolePermission, UserInfo, UserPermission, UserRole, VecExtensions,
 };
-
-use chrono::Utc;
 
 use super::dto::PaginatedUsers;
 use crate::common::hash_password;
@@ -23,73 +21,50 @@ impl AppState {
 
     let hashed_password = hash_password(&input.password)?;
 
-    let mut transaction = self
-      .pool
-      .begin()
+    let mut db = self.db.clone();
+    let mut transaction = db
+      .transaction()
       .await
       .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
-    let user_info = sqlx::query_as::<_, UserInfo>(
-      r#"
-      INSERT INTO users (username, password, created_at, updated_at)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, username, password, created_at, updated_at
-      "#,
-    )
-    .bind(&input.username)
-    .bind(hashed_password)
-    .bind(Utc::now())
-    .bind(Utc::now())
-    .fetch_one(&mut *transaction)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    let user_info = UserInfo::create()
+      .username(&input.username)
+      .password(hashed_password)
+      .exec(&mut transaction)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
-    let roles: Vec<Role> = sqlx::query_as(
-      r#"
-      WITH inserted AS (
-          INSERT INTO user_roles (user_id, role_id, created_at, updated_at)
-          VALUES ($1, 1, $2, $3) -- default role User, ID: 1
-          RETURNING role_id
-      )
-      SELECT r.id, r.name, r.created_at, r.updated_at
-      FROM roles r
-      JOIN inserted i ON i.role_id = r.id
-      "#,
-    )
-    .bind(user_info.id)
-    .bind(Utc::now())
-    .bind(Utc::now())
-    .fetch_all(&mut *transaction)
-    .await?;
+    // Default role User, ID: 1
+    UserRole::create()
+      .user_id(user_info.id)
+      .role_id(1)
+      .exec(&mut transaction)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
-    let permissions: Vec<Permission> = sqlx::query_as(
-      r#"
-      SELECT p.id, p.name, p.created_at, p.updated_at
-      FROM permissions p
-      JOIN role_permissions rp ON rp.permission_id = p.id
-      JOIN user_roles ur ON ur.role_id = rp.role_id
-      WHERE ur.user_id = $1
-      "#,
-    )
-    .bind(user_info.id)
-    .fetch_all(&mut *transaction)
-    .await?;
+    let roles = Role::filter_by_id(1).exec(&mut transaction).await?;
+
+    let role_perms = RolePermission::filter_by_role_id(1)
+      .exec(&mut transaction)
+      .await?;
+    let perm_ids: Vec<i32> = role_perms.iter().map(|rp| rp.permission_id).collect();
+
+    let permissions = if perm_ids.is_empty() {
+      vec![]
+    } else {
+      Permission::filter(Permission::fields().id().in_list(perm_ids))
+        .exec(&mut transaction)
+        .await?
+    };
 
     // insert user permissions in user_permissions
     for permission in &permissions {
-      sqlx::query(
-        r#"
-        INSERT INTO user_permissions (user_id, permission_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4)
-        "#,
-      )
-      .bind(user_info.id)
-      .bind(permission.id)
-      .bind(Utc::now())
-      .bind(Utc::now())
-      .execute(&mut *transaction)
-      .await
-      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+      UserPermission::create()
+        .user_id(user_info.id)
+        .permission_id(permission.id)
+        .exec(&mut transaction)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
     }
 
     transaction
@@ -112,48 +87,38 @@ impl AppState {
         )));
       }
     }
-    let mut transaction = self
-      .pool
-      .begin()
+    let mut db = self.db.clone();
+    let mut transaction = db
+      .transaction()
       .await
       .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
     // delete user roles in user_roles
-    sqlx::query(
-      r#"
-      DELETE FROM user_roles
-      WHERE user_id = $1
-      "#,
-    )
-    .bind(user_id)
-    .execute(&mut *transaction)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    UserRole::filter_by_user_id(user_id)
+      .delete()
+      .exec(&mut transaction)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
     // delete user permissions in user_permissions
-    sqlx::query(
-      r#"
-      DELETE FROM user_permissions
-      WHERE user_id = $1
-      "#,
-    )
-    .bind(user_id)
-    .execute(&mut *transaction)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    UserPermission::filter_by_user_id(user_id)
+      .delete()
+      .exec(&mut transaction)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
-    // delete user
-    let result = sqlx::query(
-      r#"
-      DELETE FROM users
-      WHERE id = $1
-      RETURNING id, username, created_at, updated_at
-      "#,
-    )
-    .bind(user_id)
-    .fetch_optional(&mut *transaction)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    // check and delete user
+    let existing = UserInfo::filter_by_id(user_id)
+      .first()
+      .exec(&mut transaction)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+
+    UserInfo::filter_by_id(user_id)
+      .delete()
+      .exec(&mut transaction)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
     // commit the transaction
     transaction
@@ -161,7 +126,7 @@ impl AppState {
       .await
       .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
-    match result {
+    match existing {
       Some(_) => Ok(()),
       None => Err(AppError::NotFound(format!(
         "User with id {} not found",
@@ -190,26 +155,21 @@ impl AppState {
     // Admin: can update roles, permissions, and own info when updating self
     if input.is_admin {
       if input.is_own_user {
+        let mut db = self.db.clone();
+        let mut user_info = user.user_info.clone();
+        let new_username = input.username.unwrap_or_else(|| user_info.username.clone());
         let hashed_password = if let Some(password) = input.password {
           hash_password(&password)?
         } else {
-          user.user_info.password.clone()
+          user_info.password.clone()
         };
-        let _updated_user_info: UserInfo = sqlx::query_as(
-          r#"
-          UPDATE users
-          SET username = $1, password = $2, updated_at = $3
-          WHERE id = $4
-          RETURNING id, username, created_at, updated_at
-          "#,
-        )
-        .bind(input.username.unwrap_or(user.user_info.username.clone()))
-        .bind(hashed_password)
-        .bind(Utc::now())
-        .bind(user_id)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+        user_info
+          .update()
+          .username(new_username)
+          .password(hashed_password)
+          .exec(&mut db)
+          .await
+          .map_err(|err| AppError::DatabaseError(err.to_string()))?;
       }
       if let Some(roles) = input.roles {
         self.update_roles(roles.extract_ids(), user_id).await?;
@@ -234,26 +194,23 @@ impl AppState {
 
     // Own user: can update own info (username/password) only
     if input.is_own_user {
+      let mut db = self.db.clone();
+      let mut updated_user_info = user.user_info;
+      let new_username = input
+        .username
+        .unwrap_or_else(|| updated_user_info.username.clone());
       let hashed_password = if let Some(password) = input.password {
         hash_password(&password)?
       } else {
-        user.user_info.password
+        updated_user_info.password.clone()
       };
-      let updated_user_info: UserInfo = sqlx::query_as(
-        r#"
-        UPDATE users
-        SET username = $1, password = $2, updated_at = $3
-        WHERE id = $4
-        RETURNING id, username, created_at, updated_at
-        "#,
-      )
-      .bind(input.username.unwrap_or(user.user_info.username))
-      .bind(hashed_password)
-      .bind(Utc::now())
-      .bind(user_id)
-      .fetch_one(&self.pool)
-      .await
-      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+      updated_user_info
+        .update()
+        .username(new_username)
+        .password(hashed_password)
+        .exec(&mut db)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
       return self.get_user_obj_by_user_info(updated_user_info).await;
     }
 
@@ -261,18 +218,13 @@ impl AppState {
   }
 
   pub async fn get_user_by_id(&self, user_id: i32) -> Result<User, AppError> {
-    let user_info: UserInfo = sqlx::query_as(
-      r#"
-      SELECT id, username, password, created_at, updated_at
-      FROM users
-      WHERE id = $1
-      "#,
-    )
-    .bind(user_id)
-    .fetch_optional(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?
-    .ok_or(AppError::NotFound(format!("User: {} not found", user_id)))?;
+    let mut db = self.db.clone();
+    let user_info = UserInfo::filter_by_id(user_id)
+      .first()
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?
+      .ok_or(AppError::NotFound(format!("User: {} not found", user_id)))?;
 
     let user = self.get_user_obj_by_user_info(user_info).await?;
 
@@ -280,133 +232,128 @@ impl AppState {
   }
 
   pub async fn get_user_by_username(&self, username: &str) -> Result<User, AppError> {
-    let user_info: UserInfo = sqlx::query_as(
-      r#"
-      SELECT id, username, created_at, updated_at
-      FROM users
-      WHERE username = $1
-      "#,
-    )
-    .bind(username)
-    .fetch_one(&self.pool)
-    .await
-    .map_err(|_| AppError::NotFound(format!("User: {} not found", username)))?;
+    let mut db = self.db.clone();
+    let mut user_info = UserInfo::filter_by_username(username)
+      .first()
+      .exec(&mut db)
+      .await
+      .map_err(|_| AppError::NotFound(format!("User: {} not found", username)))?
+      .ok_or_else(|| AppError::NotFound(format!("User: {} not found", username)))?;
+    user_info.password = String::new();
 
     let user = self.get_user_obj_by_user_info(user_info).await?;
     Ok(user)
   }
 
   pub async fn verify_user_by_username(&self, username: &str) -> Result<User, AppError> {
-    let user_info: UserInfo = sqlx::query_as(
-      r#"
-      SELECT id, username, password, created_at, updated_at
-      FROM users
-      WHERE username = $1
-      "#,
-    )
-    .bind(username)
-    .fetch_one(&self.pool)
-    .await
-    .map_err(|_| AppError::NotFound(format!("User: {} not found", username)))?;
+    let mut db = self.db.clone();
+    let user_info = UserInfo::filter_by_username(username)
+      .first()
+      .exec(&mut db)
+      .await
+      .map_err(|_| AppError::NotFound(format!("User: {} not found", username)))?
+      .ok_or_else(|| AppError::NotFound(format!("User: {} not found", username)))?;
 
     let user = self.get_user_obj_by_user_info(user_info).await?;
     Ok(user)
   }
 
   pub async fn get_users(&self, limit: i64, offset: i64) -> Result<PaginatedUsers, AppError> {
-    // Optimized approach: fetch users with their basic info and then batch fetch roles/permissions
-    let users_info = sqlx::query_as::<_, UserInfo>(
-      r#"
-      SELECT id, username, created_at, updated_at
-      FROM users
-      ORDER BY id
-      LIMIT $1
-      OFFSET $2
-      "#,
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    let mut db = self.db.clone();
+    let limit_usize = usize::try_from(limit.max(0)).unwrap_or(0);
+    let offset_usize = usize::try_from(offset.max(0)).unwrap_or(0);
+
+    let users_info = UserInfo::all()
+      .order_by(UserInfo::fields().id().asc())
+      .limit(limit_usize)
+      .offset(offset_usize)
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+
+    let total_count = UserInfo::all()
+      .count()
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))? as i64;
 
     if users_info.is_empty() {
-      let total_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
-
       return Ok(PaginatedUsers {
         users: vec![],
-        total_count: total_count.0,
+        total_count,
       });
     }
 
-    // Batch fetch all roles for these users
     let user_ids: Vec<i32> = users_info.iter().map(|u| u.id).collect();
-    let user_roles_map: std::collections::HashMap<i32, Vec<Role>> =
-      sqlx::query_as::<_, UserRoleRow>(
-        r#"
-      SELECT
-        ur.user_id,
-        r.id,
-        r.name,
-        r.created_at,
-        r.updated_at
-      FROM user_roles ur
-      JOIN roles r ON ur.role_id = r.id
-      WHERE ur.user_id = ANY($1)
-      "#,
-      )
-      .bind(&user_ids)
-      .fetch_all(&self.pool)
+
+    // Batch fetch all roles for these users
+    let user_roles = UserRole::filter(UserRole::fields().user_id().in_list(user_ids.clone()))
+      .exec(&mut db)
       .await
-      .map_err(|err| AppError::DatabaseError(err.to_string()))?
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+
+    let role_ids: Vec<i32> = user_roles
+      .iter()
+      .map(|ur| ur.role_id)
+      .collect::<HashSet<_>>()
       .into_iter()
-      .fold(std::collections::HashMap::new(), |mut map, row| {
-        let role = Role {
-          id: row.id,
-          name: row.name,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        };
-        map.entry(row.user_id).or_insert_with(Vec::new).push(role);
+      .collect();
+
+    let roles_by_id: HashMap<i32, Role> = if role_ids.is_empty() {
+      HashMap::new()
+    } else {
+      Role::filter(Role::fields().id().in_list(role_ids))
+        .exec(&mut db)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?
+        .into_iter()
+        .map(|r| (r.id, r))
+        .collect()
+    };
+
+    let user_roles_map: HashMap<i32, Vec<Role>> =
+      user_roles.into_iter().fold(HashMap::new(), |mut map, ur| {
+        if let Some(role) = roles_by_id.get(&ur.role_id) {
+          map.entry(ur.user_id).or_default().push(role.clone());
+        }
         map
       });
 
     // Batch fetch all permissions for these users
-    let user_permissions_map: std::collections::HashMap<i32, Vec<Permission>> =
-      sqlx::query_as::<_, UserPermissionRow>(
-        r#"
-      SELECT
-        up.user_id,
-        p.id,
-        p.name,
-        p.created_at,
-        p.updated_at
-      FROM user_permissions up
-      JOIN permissions p ON up.permission_id = p.id
-      WHERE up.user_id = ANY($1)
-      "#,
-      )
-      .bind(&user_ids)
-      .fetch_all(&self.pool)
-      .await
-      .map_err(|err| AppError::DatabaseError(err.to_string()))?
+    let user_permissions =
+      UserPermission::filter(UserPermission::fields().user_id().in_list(user_ids))
+        .exec(&mut db)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+
+    let perm_ids: Vec<i32> = user_permissions
+      .iter()
+      .map(|up| up.permission_id)
+      .collect::<HashSet<_>>()
       .into_iter()
-      .fold(std::collections::HashMap::new(), |mut map, row| {
-        let permission = Permission {
-          id: row.id,
-          name: row.name,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        };
-        map
-          .entry(row.user_id)
-          .or_insert_with(Vec::new)
-          .push(permission);
-        map
-      });
+      .collect();
+
+    let perms_by_id: HashMap<i32, Permission> = if perm_ids.is_empty() {
+      HashMap::new()
+    } else {
+      Permission::filter(Permission::fields().id().in_list(perm_ids))
+        .exec(&mut db)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?
+        .into_iter()
+        .map(|p| (p.id, p))
+        .collect()
+    };
+
+    let user_permissions_map: HashMap<i32, Vec<Permission>> =
+      user_permissions
+        .into_iter()
+        .fold(HashMap::new(), |mut map, up| {
+          if let Some(perm) = perms_by_id.get(&up.permission_id) {
+            map.entry(up.user_id).or_default().push(perm.clone());
+          }
+          map
+        });
 
     // Construct User objects efficiently
     let users: Vec<User> = users_info
@@ -432,20 +379,7 @@ impl AppState {
       })
       .collect();
 
-    let total_count: (i64,) = sqlx::query_as(
-      r#"
-      SELECT COUNT(*)
-      FROM users
-      "#,
-    )
-    .fetch_one(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
-
-    Ok(PaginatedUsers {
-      users,
-      total_count: total_count.0,
-    })
+    Ok(PaginatedUsers { users, total_count })
   }
 
   async fn get_user_obj_by_user_info(&self, user_info: UserInfo) -> Result<User, AppError> {
@@ -456,71 +390,66 @@ impl AppState {
   }
 
   pub async fn get_user_roles(&self, user_id: i32) -> Result<Vec<Role>, AppError> {
-    let roles = sqlx::query_as(
-      r#"
-      SELECT r.id, r.name, r.created_at, r.updated_at
-      FROM roles r
-      INNER JOIN user_roles ur ON r.id = ur.role_id
-      WHERE ur.user_id = $1
-      "#,
-    )
-    .bind(user_id)
-    .fetch_all(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    let mut db = self.db.clone();
+    let user_roles = UserRole::filter_by_user_id(user_id)
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+
+    let role_ids: Vec<i32> = user_roles.into_iter().map(|ur| ur.role_id).collect();
+    if role_ids.is_empty() {
+      return Ok(vec![]);
+    }
+
+    let roles = Role::filter(Role::fields().id().in_list(role_ids))
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
     Ok(roles)
   }
 
   pub async fn get_user_permissions(&self, user_id: i32) -> Result<Vec<Permission>, AppError> {
-    let permissions = sqlx::query_as(
-      r#"
-      SELECT p.id, p.name, p.created_at, p.updated_at
-      FROM permissions p
-      INNER JOIN user_permissions up ON p.id = up.permission_id
-      WHERE up.user_id = $1
-      "#,
-    )
-    .bind(user_id)
-    .fetch_all(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    let mut db = self.db.clone();
+    let user_permissions = UserPermission::filter_by_user_id(user_id)
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+
+    let perm_ids: Vec<i32> = user_permissions
+      .into_iter()
+      .map(|up| up.permission_id)
+      .collect();
+    if perm_ids.is_empty() {
+      return Ok(vec![]);
+    }
+
+    let permissions = Permission::filter(Permission::fields().id().in_list(perm_ids))
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
     Ok(permissions)
   }
 
   pub async fn is_user_exists_by_id(&self, user_id: i32) -> Result<bool, AppError> {
-    let result = sqlx::query_scalar(
-      r#"
-      SELECT EXISTS (
-        SELECT 1
-        FROM users
-        WHERE id = $1
-      )
-      "#,
-    )
-    .bind(user_id)
-    .fetch_one(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
-    Ok(result)
+    let mut db = self.db.clone();
+    let user = UserInfo::filter_by_id(user_id)
+      .first()
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    Ok(user.is_some())
   }
 
   pub async fn is_user_exists_by_username(&self, username: &str) -> Result<bool, AppError> {
-    let result = sqlx::query_scalar(
-      r#"
-      SELECT EXISTS (
-        SELECT 1
-        FROM users
-        WHERE username = $1
-      )
-      "#,
-    )
-    .bind(username)
-    .fetch_one(&self.pool)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
-    Ok(result)
+    let mut db = self.db.clone();
+    let user = UserInfo::filter_by_username(username)
+      .first()
+      .exec(&mut db)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    Ok(user.is_some())
   }
 
   pub async fn update_permissions(
@@ -528,26 +457,30 @@ impl AppState {
     permission_ids: Vec<i32>,
     user_id: i32,
   ) -> Result<(), AppError> {
-    let mut transaction = self
-      .pool
-      .begin()
+    let mut db = self.db.clone();
+    let mut transaction = db
+      .transaction()
       .await
       .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
     // check permission_ids is valid in current user role's permissions
-    let role_permissions: Vec<i32> = sqlx::query_scalar(
-      r#"
-      SELECT DISTINCT p.id
-      FROM permissions p
-      JOIN role_permissions rp ON rp.permission_id = p.id
-      JOIN user_roles ur ON ur.role_id = rp.role_id
-      WHERE ur.user_id = $1
-      "#,
-    )
-    .bind(user_id)
-    .fetch_all(&mut *transaction)
-    .await
-    .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    let user_roles = UserRole::filter_by_user_id(user_id)
+      .exec(&mut transaction)
+      .await
+      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+    let role_ids: Vec<i32> = user_roles.into_iter().map(|ur| ur.role_id).collect();
+
+    let role_permissions: HashSet<i32> = if role_ids.is_empty() {
+      HashSet::new()
+    } else {
+      RolePermission::filter(RolePermission::fields().role_id().in_list(role_ids))
+        .exec(&mut transaction)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?
+        .into_iter()
+        .map(|rp| rp.permission_id)
+        .collect()
+    };
 
     for permission_id in &permission_ids {
       if !role_permissions.contains(permission_id) {
@@ -559,63 +492,39 @@ impl AppState {
     }
 
     // compute need delete and insert permission ids
-    let old_permissions: HashSet<i32> = sqlx::query_scalar(
-      r#"
-      SELECT permission_id
-      FROM user_permissions
-      WHERE user_id = $1
-      "#,
-    )
-    .bind(user_id)
-    .fetch_all(&mut *transaction)
-    .await?
-    .into_iter()
-    .collect();
+    let old_permissions: HashSet<i32> = UserPermission::filter_by_user_id(user_id)
+      .exec(&mut transaction)
+      .await?
+      .into_iter()
+      .map(|up| up.permission_id)
+      .collect();
 
-    let new_permissions: HashSet<i32> = permission_ids.iter().cloned().collect();
+    let new_permissions: HashSet<i32> = permission_ids.iter().copied().collect();
 
     let permissions_to_delete: Vec<i32> = old_permissions
       .difference(&new_permissions)
-      .cloned()
+      .copied()
       .collect();
     let permissions_to_insert: Vec<i32> = new_permissions
       .difference(&old_permissions)
-      .cloned()
+      .copied()
       .collect();
 
     // delete user permissions in user_permissions by permissions_to_delete
     for permission_id in permissions_to_delete {
-      sqlx::query(
-        r#"
-        DELETE FROM user_permissions
-        WHERE user_id = $1
-        AND permission_id = $2
-        "#,
-      )
-      .bind(user_id)
-      .bind(permission_id)
-      .execute(&mut *transaction)
-      .await
-      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+      UserPermission::delete_by_user_id_and_permission_id(&mut transaction, user_id, permission_id)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
     }
 
     // insert user permissions in user_permissions by permissions_to_insert
     for permission_id in permissions_to_insert {
-      sqlx::query(
-        r#"
-        INSERT INTO user_permissions (user_id, permission_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (user_id, permission_id)
-        DO UPDATE SET updated_at = EXCLUDED.updated_at
-        "#,
-      )
-      .bind(user_id)
-      .bind(permission_id)
-      .bind(Utc::now())
-      .bind(Utc::now())
-      .execute(&mut *transaction)
-      .await
-      .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+      UserPermission::create()
+        .user_id(user_id)
+        .permission_id(permission_id)
+        .exec(&mut transaction)
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
     }
 
     // commit the transaction
@@ -627,164 +536,112 @@ impl AppState {
   }
 
   async fn update_roles(&self, role_ids: Vec<i32>, user_id: i32) -> Result<(), AppError> {
-    let mut transaction = self
-      .pool
-      .begin()
+    let mut db = self.db.clone();
+    let mut transaction = db
+      .transaction()
       .await
       .map_err(|err| AppError::DatabaseError(format!("Failed to begin transaction: {}", err)))?;
 
     // get current user permissions
-    let old_permissions: HashSet<i32> = sqlx::query_scalar(
-      r#"
-      SELECT permission_id
-      FROM user_permissions
-      WHERE user_id = $1
-      "#,
-    )
-    .bind(user_id)
-    .fetch_all(&mut *transaction)
-    .await?
-    .into_iter()
-    .collect();
+    let old_permissions: HashSet<i32> = UserPermission::filter_by_user_id(user_id)
+      .exec(&mut transaction)
+      .await?
+      .into_iter()
+      .map(|up| up.permission_id)
+      .collect();
 
     // get current user role ids
-    let current_role_ids: HashSet<i32> = sqlx::query_scalar(
-      r#"
-       SELECT role_id
-       FROM user_roles
-       WHERE user_id = $1
-      "#,
-    )
-    .bind(user_id)
-    .fetch_all(&mut *transaction)
-    .await?
-    .into_iter()
-    .collect();
+    let current_role_ids: HashSet<i32> = UserRole::filter_by_user_id(user_id)
+      .exec(&mut transaction)
+      .await?
+      .into_iter()
+      .map(|ur| ur.role_id)
+      .collect();
 
     // compute need delete and insert role ids
     let new_role_ids: HashSet<i32> = role_ids.into_iter().collect();
 
     let roles_to_delete: Vec<i32> = current_role_ids
       .difference(&new_role_ids)
-      .cloned()
+      .copied()
       .collect();
     let roles_to_insert: Vec<i32> = new_role_ids
       .difference(&current_role_ids)
-      .cloned()
+      .copied()
       .collect();
 
     // delete user roles in user_roles by roles_to_delete
     for role_id in roles_to_delete {
-      sqlx::query(
-        r#"
-        DELETE FROM user_roles
-        WHERE user_id = $1
-        AND role_id = $2
-        "#,
-      )
-      .bind(user_id)
-      .bind(role_id)
-      .execute(&mut *transaction)
-      .await
-      .map_err(|err| {
-        AppError::DatabaseError(format!("Failed to delete role_id: {}, {}", role_id, err))
-      })?;
+      UserRole::delete_by_user_id_and_role_id(&mut transaction, user_id, role_id)
+        .await
+        .map_err(|err| {
+          AppError::DatabaseError(format!("Failed to delete role_id: {}, {}", role_id, err))
+        })?;
     }
 
     for role_id in roles_to_insert {
-      sqlx::query(
-        r#"
-        INSERT INTO user_roles (user_id, role_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (user_id, role_id)
-        DO UPDATE SET updated_at = EXCLUDED.updated_at
-        "#,
-      )
-      .bind(user_id)
-      .bind(role_id)
-      .bind(Utc::now())
-      .bind(Utc::now())
-      .execute(&mut *transaction)
-      .await
-      .map_err(|err| {
-        AppError::DatabaseError(format!("Failed to insert role_id {}: {}", role_id, err))
-      })?;
+      UserRole::create()
+        .user_id(user_id)
+        .role_id(role_id)
+        .exec(&mut transaction)
+        .await
+        .map_err(|err| {
+          AppError::DatabaseError(format!("Failed to insert role_id {}: {}", role_id, err))
+        })?;
     }
 
     // get all of new role's permissions
     let mut new_permissions = HashSet::<i32>::new();
     for role_id in &new_role_ids {
-      let permissions: Vec<i32> = sqlx::query_scalar(
-        r#"
-        SELECT DISTINCT permission_id
-        FROM role_permissions
-        WHERE role_id = $1
-        "#,
-      )
-      .bind(role_id)
-      .fetch_all(&mut *transaction)
-      .await
-      .map_err(|err| {
-        AppError::DatabaseError(format!(
-          "Failed to fetch permissions for role_id {}: {}",
-          role_id, err
-        ))
-      })?;
+      let permissions: Vec<i32> = RolePermission::filter_by_role_id(*role_id)
+        .exec(&mut transaction)
+        .await
+        .map_err(|err| {
+          AppError::DatabaseError(format!(
+            "Failed to fetch permissions for role_id {}: {}",
+            role_id, err
+          ))
+        })?
+        .into_iter()
+        .map(|rp| rp.permission_id)
+        .collect();
 
       new_permissions.extend(permissions);
     }
 
     let permissions_to_delete: Vec<i32> = old_permissions
       .difference(&new_permissions)
-      .cloned()
+      .copied()
       .collect();
     let permissions_to_insert: Vec<i32> = new_permissions
       .difference(&old_permissions)
-      .cloned()
+      .copied()
       .collect();
 
     // delete user permissions in user_permissions by permissions_to_delete
     for permission_id in permissions_to_delete {
-      sqlx::query(
-        r#"
-        DELETE FROM user_permissions
-        WHERE user_id = $1
-        AND permission_id = $2
-        "#,
-      )
-      .bind(user_id)
-      .bind(permission_id)
-      .execute(&mut *transaction)
-      .await
-      .map_err(|err| {
-        AppError::DatabaseError(format!(
-          "Failed to delete permission_id {}: {}",
-          permission_id, err
-        ))
-      })?;
+      UserPermission::delete_by_user_id_and_permission_id(&mut transaction, user_id, permission_id)
+        .await
+        .map_err(|err| {
+          AppError::DatabaseError(format!(
+            "Failed to delete permission_id {}: {}",
+            permission_id, err
+          ))
+        })?;
     }
 
     for permission_id in permissions_to_insert {
-      sqlx::query(
-        r#"
-        INSERT INTO user_permissions (user_id, permission_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (user_id, permission_id)
-        DO UPDATE SET updated_at = EXCLUDED.updated_at
-        "#,
-      )
-      .bind(user_id)
-      .bind(permission_id)
-      .bind(Utc::now())
-      .bind(Utc::now())
-      .execute(&mut *transaction)
-      .await
-      .map_err(|err| {
-        AppError::DatabaseError(format!(
-          "Failed to insert permission_id {}: {}",
-          permission_id, err
-        ))
-      })?;
+      UserPermission::create()
+        .user_id(user_id)
+        .permission_id(permission_id)
+        .exec(&mut transaction)
+        .await
+        .map_err(|err| {
+          AppError::DatabaseError(format!(
+            "Failed to insert permission_id {}: {}",
+            permission_id, err
+          ))
+        })?;
     }
 
     transaction

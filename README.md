@@ -3,7 +3,7 @@
 本项目实践使用 Axum 搭建后台服务，包括:
 
 - 构建 API
-- 使用 Sqlx v0.8.6 和 Postgres 数据库提供数据库服务
+- 使用 Toasty v0.11 和 Postgres 数据库提供数据库服务
 - 采用类似 Nest.js 的项目组织结构，使得项目的文本文件负责单独的职责使得代码更信息易读
 - 完整的认证授权系统 (JWT + RBAC)
 - 高性能的数据库查询优化
@@ -172,7 +172,7 @@ pub async fn get_users_handler(
 
 - **Rust**: 最新稳定版，兼容 Rust 2024 Edition
 - **Axum**: v0.8 - 高性能异步 Web 框架
-- **SQLx**: v0.8.6 - 编译时安全的 SQL 工具包
+- **Toasty**: v0.11 - Tokio 生态异步 ORM 框架
 - **PostgreSQL**: 可靠的关系型数据库
 - **jsonwebtoken**: 基于 Ed25519 的 JWT 签名/验证（纯 Rust 实现，无 C 依赖）
 - **Argon2**: 密码哈希

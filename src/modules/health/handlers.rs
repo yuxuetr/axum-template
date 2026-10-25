@@ -61,7 +61,8 @@ pub async fn readiness_check(State(state): State<AppState>) -> Result<impl IntoR
 
   // Check database connectivity
   let db_start = Instant::now();
-  let db_status = match sqlx::query("SELECT 1").fetch_one(&state.pool).await {
+  let mut db = state.db.clone();
+  let db_status = match toasty::sql::query("SELECT 1").exec(&mut db).await {
     Ok(_) => DatabaseStatus {
       status: "healthy".to_string(),
       response_time_ms: Some(db_start.elapsed().as_millis() as u64),
