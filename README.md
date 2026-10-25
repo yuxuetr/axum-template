@@ -1,29 +1,213 @@
 # Rust Axum Web 应用通用化模版
 
-本项目实践使用 Axum 搭建后台服务，包括:
+本项目实践使用 Axum 搭建后台服务，并提供 **三个分支** 分别演示 Rust 生态主流的三种异步数据库访问方案（共享完全一致的 REST API、JWT + RBAC 权限体系与数据库表结构）：
 
-- 构建 API
-- 使用 Toasty v0.11 和 Postgres 数据库提供数据库服务
-- 采用类似 Nest.js 的项目组织结构，使得项目的文本文件负责单独的职责使得代码更信息易读
+- **`main` 分支（默认）**: 使用 **SQLx v0.8.6** + PostgreSQL（原生 SQL、轻量直观）
+- **`seaorm` 分支**: 使用 **SeaORM v1.1** + PostgreSQL（功能完备的 ActiveRecord / 关系型异步 ORM）
+- **`toasty` 分支**: 使用 **Toasty v0.11** + PostgreSQL（Tokio 官方生态的声明式异步 ORM）
+
+此外项目还包括:
+- 采用类似 Nest.js 的项目组织结构，使得项目的每个模块文件职责单一、清晰易读
 - 完整的认证授权系统 (JWT + RBAC)
-- 高性能的数据库查询优化
+- 高性能的数据库查询优化（批量关联查询消除 N+1 问题）
 - 完善的错误处理和日志记录
-- 健康检查端点支持
-- 包含单元测试和集成测试代码
+- 健康检查端点支持 (`/health`、`/health/live`、`/health/ready`)
+- 包含完整的单元测试和集成测试代码
 - Github Actions CI
+
+---
+
+## 🗄️ 三大数据库分支对比与使用指南
+
+你可以通过 `git checkout <branch>` 切换到对应分支查看或作为项目脚手架使用：
+
+```bash
+git checkout main    # SQLx 版本
+git checkout seaorm  # SeaORM 版本
+git checkout toasty  # Toasty 版本
+```
+
+| 维度 | `main` 分支 (SQLx) | `seaorm` 分支 (SeaORM) | `toasty` 分支 (Toasty) |
+| :--- | :--- | :--- | :--- |
+| **核心依赖** | `sqlx = "0.8.6"` | `sea-orm = "1.1"` | `toasty = "0.11.0"` + `jiff = "0.2"` |
+| **编程范式** | 原生 SQL + 行映射 (`FromRow`) | 实体关系映射 (`Entity` + `ActiveModel`) | 声明式模型派生 (`#[derive(toasty::Model)]`) |
+| **状态连接类型** | `sqlx::PgPool` | `sea_orm::DatabaseConnection` | `toasty::Db` |
+| **时间类型** | `chrono::DateTime<Utc>` | `chrono::DateTime<Utc>` | `jiff::Timestamp` |
+| **测试隔离方案** | `sqlx-db-tester::TestPg` | `sqlx-db-tester::TestPg` + `SqlxPostgresConnector` | 内置 `test_util::TestPg` 临时库生命周期管理 |
+| **适用场景** | 偏好手写 SQL、极致掌控复杂查询与 CTE | 复杂关系模型、动态条件构建、企业级 CRUD | 追求极简模型定义、强类型链式构建器与自动时间戳维护 |
+
+### 1. `main` 分支：SQLx 使用方式
+
+- **依赖配置 (`Cargo.toml`)**：
+  ```toml
+  sqlx = { version = "0.8.6", features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "macros",
+    "chrono",
+    "uuid",
+  ] }
+  ```
+- **连接池初始化 (`src/lib.rs`)**：
+  ```rust
+  let pool = PgPool::connect(&config.database.db_url).await?;
+  let state = AppState::new(config, pool);
+  ```
+- **实体定义 (`src/modules/users/entity.rs`)**：
+  直接为结构体派生 `sqlx::FromRow`：
+  ```rust
+  #[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+  pub struct UserInfo {
+    pub id: i32,
+    pub username: String,
+    #[sqlx(default)]
+    #[serde(skip)]
+    pub password: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+  }
+  ```
+- **查询与事务 (`src/modules/users/services.rs`)**：
+  使用 `sqlx::query_as`、`sqlx::query_scalar` 执行参数化 SQL，通过 `self.pool.begin().await?` 开启事务：
+  ```rust
+  let mut transaction = self.pool.begin().await?;
+  let user_info = sqlx::query_as::<_, UserInfo>(
+    "INSERT INTO users (username, password, created_at, updated_at) VALUES ($1, $2, $3, $4) RETURNING *"
+  )
+  .bind(&input.username)
+  .bind(hashed_password)
+  .bind(Utc::now())
+  .bind(Utc::now())
+  .fetch_one(&mut *transaction)
+  .await?;
+  transaction.commit().await?;
+  ```
+
+### 2. `seaorm` 分支：SeaORM 使用方式
+
+- **依赖配置 (`Cargo.toml`)**：
+  ```toml
+  sea-orm = { version = "1.1", features = [
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+    "macros",
+    "with-chrono",
+  ] }
+  ```
+- **连接初始化 (`src/lib.rs`)**：
+  ```rust
+  let db = sea_orm::Database::connect(&config.database.db_url).await?;
+  let state = AppState::new(config, db);
+  ```
+- **实体与关系定义 (`src/modules/users/entity.rs`)**：
+  通过 `#[derive(DeriveEntityModel)]` 定义表模型，并实现 `Related<R>` 描述多对多关联（如 `users <-> user_roles <-> roles`）：
+  ```rust
+  pub mod users_entity {
+    use sea_orm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
+    #[sea_orm(table_name = "users")]
+    pub struct Model {
+      #[sea_orm(primary_key)]
+      pub id: i32,
+      #[sea_orm(unique)]
+      pub username: String,
+      #[serde(skip)]
+      pub password: String,
+      pub created_at: DateTimeUtc,
+      pub updated_at: DateTimeUtc,
+    }
+    // Relation 与 Related<roles_entity::Entity> 实现...
+  }
+  ```
+- **查询与事务 (`src/modules/users/services.rs`)**：
+  使用 `EntityTrait`、`QueryFilter`、`PaginatorTrait` 进行类型安全查询，使用 `ActiveModel` + `TransactionTrait` 处理写入与事务：
+  ```rust
+  let txn = self.db.begin().await?;
+  let user_info = users_entity::ActiveModel {
+    username: ActiveValue::Set(input.username.clone()),
+    password: ActiveValue::Set(hashed_password),
+    created_at: ActiveValue::Set(now),
+    updated_at: ActiveValue::Set(now),
+    ..Default::default()
+  }
+  .insert(&txn)
+  .await?;
+  txn.commit().await?;
+  ```
+
+### 3. `toasty` 分支：Toasty 使用方式
+
+- **依赖配置 (`Cargo.toml`)**：
+  ```toml
+  toasty = { version = "0.11.0", features = ["postgresql", "jiff", "serde"] }
+  jiff = { version = "0.2", features = ["serde"] }
+  ```
+- **数据库构建与模型注册 (`src/lib.rs`)**：
+  通过 `toasty::models!(crate::*)` 自动扫描并注册 crate 内所有 `#[derive(toasty::Model)]` 模型：
+  ```rust
+  let db = toasty::Db::builder()
+    .models(toasty::models!(crate::*))
+    .connect(&config.database.db_url)
+    .await?;
+  let state = AppState::new(config, db);
+  ```
+- **声明式模型定义 (`src/modules/users/entity.rs`)**：
+  使用 `#[derive(toasty::Model)]` 标注业务结构体，`#[key]`、`#[unique]`、`#[index]` 会自动生成对应的 `filter_by_*` / `delete_by_*` 方法，`#[auto]` 在 `created_at` 与 `updated_at` 上会自动维护创建与更新时间戳：
+  ```rust
+  #[derive(Clone, Debug, Deserialize, Serialize, toasty::Model)]
+  #[table = "users"]
+  pub struct UserInfo {
+    #[key]
+    #[auto]
+    pub id: i32,
+    #[unique]
+    pub username: String,
+    #[serde(skip)]
+    #[default(String::new())]
+    pub password: String,
+    #[auto]
+    pub created_at: jiff::Timestamp,
+    #[auto]
+    pub updated_at: jiff::Timestamp,
+  }
+  ```
+- **链式查询构建器与事务 (`src/modules/users/services.rs`)**：
+  使用生成的 `Model::create()`、`instance.update()`、`Model::filter_by_*()`、`in_list`、`count()` 以及 `db.transaction()`：
+  ```rust
+  let mut db = self.db.clone();
+  let mut transaction = db.transaction().await?;
+
+  let user_info = UserInfo::create()
+    .username(&input.username)
+    .password(hashed_password)
+    .exec(&mut transaction)
+    .await?;
+
+  let roles = Role::filter(Role::fields().id().in_list(role_ids))
+    .exec(&mut transaction)
+    .await?;
+
+  transaction.commit().await?;
+  ```
+  对于健康探活或自定义 SQL，也可直接使用 `toasty::sql::query("SELECT 1").exec(&mut db).await` 或 `toasty::sql::statement(...)`。
+
+---
 
 ## 快速开始
 
 ### 环境要求
-- Rust 1.70+
+- Rust 1.85+ (Rust 2024 Edition)
 - PostgreSQL 12+
 - Docker (可选)
 
 ### 本地开发
 ```bash
-# 1. 克隆项目
+# 1. 克隆项目并选择分支 (main / seaorm / toasty)
 git clone https://github.com/yuxuetr/axum-template.git
 cd axum-template
+git checkout main # 或 git checkout seaorm / git checkout toasty
 
 # 2. 创建数据库
 createdb axum_template
@@ -36,6 +220,17 @@ cargo run
 ```
 
 服务将在 `http://localhost:3000` 启动。
+
+### 运行测试
+三个分支均支持通过 `DATABASE_URL` 环境变量指定测试所连接的 PostgreSQL 实例，测试框架会自动创建隔离的临时数据库并在测试结束后自动清理：
+
+```bash
+# 使用 cargo-nextest 运行全部单元与集成测试
+DATABASE_URL="postgres://postgres:postgres@localhost:5432/postgres" cargo nextest run --all-features
+
+# 或使用标准 cargo test
+DATABASE_URL="postgres://postgres:postgres@localhost:5432/postgres" cargo test --all-features
+```
 
 ### Docker 部署
 ```bash
@@ -55,14 +250,14 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://user:password@localhost/db
 ```shell
 ├── docs                # 放置文档
 ├── fixtures            # 放置一些必要的文件，比如公私钥，测试SQL
-├── migrations          # Sqlx的目录
+├── migrations          # 数据库迁移 SQL 目录
 ├── rest_client         # VS Code REST Client的测试API文件
 ├── src                 # 源代码
-│   ├── common          # 放置公共模块，比如加解密，签名与验证，error模块，config模块等
-│   └── modules         # 业务模块
-│       ├── auth        # 注册认证模块，模块中包含: `handlers`,`services`,`dto`,`tests`,`middleware`等
-│       ├── health      # 健康检查模块，提供应用和数据库状态监控
-│       └── users       # 用户管理模块，模块中包含: `handlers`,`services`,`dto`,`tests`, `entity`等
+│   ├── common          # 放置公共模块，比如加解密，签名与验证，error模块，config模块等
+│   └── modules         # 业务模块
+│       ├── auth        # 注册认证模块，模块中包含: `handlers`,`services`,`dto`,`tests`,`middleware`等
+│       ├── health      # 健康检查模块，提供应用和数据库状态监控
+│       └── users       # 用户管理模块，模块中包含: `handlers`,`services`,`dto`,`tests`, `entity`等
 ```
 
 ### **业务模块**文件的作用:
@@ -79,12 +274,12 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://user:password@localhost/db
 
 ## 一点经验
 
-1. 如果测试过多或者复杂可能要给测试进行排序，防止并发导致错误，尤其在继承测试中，可以使用`serial_test`
-2. 为了便于测试时测试创建数据库，测试完删除数据库，可以使用`sqlx-db-tester`，并且在单独初始化全局状态时，为测试也初始化一个，连接测试数据库
+1. 如果测试过多或者复杂可能要给测试进行排序，防止并发导致错误，尤其在集成测试中，可以使用`serial_test`
+2. 为了便于测试时创建独立数据库、测试完自动删除数据库，`main` 与 `seaorm` 分支使用 `sqlx-db-tester`，`toasty` 分支在 `test_util::TestPg` 中内置了基于 `toasty` 的临时数据库创建、迁移与自动销毁机制
 3. 为了方便数据库操作，在全局状态里包含**全局配置**和**数据库连接**，并且可以将所有的`services.rs`关于数据库的操作都实现在全局状态下，便于操作
 4. 集成测试如果使用`reqwest`作为请求的客户端的话，在代码提交 Github Actions 时，
-   会由于 reqwest 默认依赖 OpenSSL 导致容器崩溃，可以参考我的`Cargo.toml`关于，
-   需要禁用掉默认的`reqwest`依赖的`OpenSSL`，使用`rustls-tls` feature 替代
+   会由于 reqwest 默认依赖 OpenSSL 导致容器崩溃，可以参考我的`Cargo.toml`配置，
+   禁用掉默认的`reqwest`依赖的`OpenSSL`，使用`rustls-tls` feature 替代
 5. 我将生成公钥私钥的内容放在了`build.rs`,这样只要执行`cargo build`或者`cargo run`之类的构建操作，
    就会自动生成证书文件在`fixtures`目录下（已加入`.gitignore`），具体逻辑可以查看`build.rs`文件
 6. 关于测试，Rust 中可以将单独文件当做一个`mod`,但是 Rust 不会识别`integration_tests.rs`为一个测试模块，但是可以识别`tests.rs`，
@@ -164,15 +359,18 @@ pub async fn get_users_handler(
 对于需要校验的业务输入，优先使用 `Validated*` 提取器；不需要校验的基础参数仍可继续使用 Axum 原生提取器。文件上传等 multipart 场景通常包含文件大小、MIME、流式读取等业务约束，建议按具体业务单独处理。
 
 ### 🧪 测试体系
-- **单元测试**: 覆盖核心业务逻辑
-- **集成测试**: 端到端API测试
-- **并发测试**: 使用`serial_test`确保测试独立性
+- **单元测试**: 覆盖核心业务逻辑、RBAC 角色/权限事务同步与异常分支
+- **集成测试**: 端到端 HTTP API 测试（认证、用户管理、健康检查）
+- **并发测试**: 使用`serial_test`与独立临时数据库确保测试独立性
 
 ## 最新技术栈
 
 - **Rust**: 最新稳定版，兼容 Rust 2024 Edition
 - **Axum**: v0.8 - 高性能异步 Web 框架
-- **Toasty**: v0.11 - Tokio 生态异步 ORM 框架
+- **数据库访问层（多分支可选）**:
+  - **SQLx**: v0.8.6 (`main` 分支) - 编译时安全的异步 SQL 工具包
+  - **SeaORM**: v1.1 (`seaorm` 分支) - 功能丰富的异步关系型 ORM
+  - **Toasty**: v0.11 (`toasty` 分支) - Tokio 生态声明式异步 ORM
 - **PostgreSQL**: 可靠的关系型数据库
 - **jsonwebtoken**: 基于 Ed25519 的 JWT 签名/验证（纯 Rust 实现，无 C 依赖）
 - **Argon2**: 密码哈希
@@ -185,30 +383,3 @@ pub async fn get_users_handler(
 ## Changelog
 
 详细的项目变更记录请查看 [CHANGELOG.md](./CHANGELOG.md)
-
-### 最近更新
-
-#### [unreleased] - 2026-03-03
-
-##### 🔐 安全与权限
-- JWT 瘦身：Claims 仅携带 user_id，不再存储完整用户对象
-- 错误脱敏：内部错误统一返回 `internal server error`，不泄露堆栈信息
-- HTTP 状态码修正：JwtError→401, SqlxError→500, UserExisted→409
-- PEM 密钥文件已加入 `.gitignore`，不再纳入版本控制
-- delete_user 仅 Admin 可操作，get_users 仅 Admin/Moderator 可操作
-- update_user 优先级重排：Admin→Moderator→own_user
-
-##### 🔄 重构
-- JWT 库从 jwt-simple 迁移到 jsonwebtoken（纯 Rust，无 C 依赖）
-- sqlx::query! 替换为 sqlx::query_as，消除编译时数据库连接依赖
-- 移除 futures、axum-extra typed-header 等未使用依赖
-- serde_yaml 替换为 serde_yaml_ng（活跃维护的安全分支）
-- 支持 DATABASE_URL 环境变量覆盖配置文件
-
-##### 🗄️ 数据库迁移
-- 新增 username UNIQUE 约束
-- 修复权限名拼写：VIEWRE_PORTS → VIEW_REPORTS
-
-##### ✅ 测试
-- 集成测试端口从硬编码改为动态分配（127.0.0.1:0）
-- 所有 25 个测试通过，所有 cargo-deny 安全检查通过
