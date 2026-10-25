@@ -4,11 +4,15 @@ on:
   push:
     branches:
       - main
+      - seaorm
+      - toasty
     tags:
       - v*
   pull_request:
     branches:
       - main
+      - seaorm
+      - toasty
 
 permissions:
   contents: write
