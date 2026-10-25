@@ -8,6 +8,7 @@ pub mod users {
   use sea_orm::entity::prelude::*;
   use serde::{Deserialize, Serialize};
 
+  #[sea_orm::model]
   #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
   #[sea_orm(table_name = "users")]
   pub struct Model {
@@ -19,46 +20,14 @@ pub mod users {
     pub password: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-  }
-
-  #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-  pub enum Relation {
-    #[sea_orm(has_many = "super::user_roles::Entity")]
-    UserRoles,
-    #[sea_orm(has_many = "super::user_permissions::Entity")]
-    UserPermissions,
-  }
-
-  impl Related<super::user_roles::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::UserRoles.def()
-    }
-  }
-
-  impl Related<super::user_permissions::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::UserPermissions.def()
-    }
-  }
-
-  impl Related<super::roles::Entity> for Entity {
-    fn to() -> RelationDef {
-      super::user_roles::Relation::Role.def()
-    }
-
-    fn via() -> Option<RelationDef> {
-      Some(super::user_roles::Relation::User.def().rev())
-    }
-  }
-
-  impl Related<super::permissions::Entity> for Entity {
-    fn to() -> RelationDef {
-      super::user_permissions::Relation::Permission.def()
-    }
-
-    fn via() -> Option<RelationDef> {
-      Some(super::user_permissions::Relation::User.def().rev())
-    }
+    #[sea_orm(has_many)]
+    pub user_roles: HasMany<super::user_roles::Entity>,
+    #[sea_orm(has_many)]
+    pub user_permissions: HasMany<super::user_permissions::Entity>,
+    #[sea_orm(has_many, via = "user_roles")]
+    pub roles: HasMany<super::roles::Entity>,
+    #[sea_orm(has_many, via = "user_permissions")]
+    pub permissions: HasMany<super::permissions::Entity>,
   }
 
   impl ActiveModelBehavior for ActiveModel {}
@@ -69,6 +38,7 @@ pub mod roles {
   use sea_orm::entity::prelude::*;
   use serde::{Deserialize, Serialize};
 
+  #[sea_orm::model]
   #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
   #[sea_orm(table_name = "roles")]
   pub struct Model {
@@ -78,46 +48,14 @@ pub mod roles {
     pub name: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-  }
-
-  #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-  pub enum Relation {
-    #[sea_orm(has_many = "super::user_roles::Entity")]
-    UserRoles,
-    #[sea_orm(has_many = "super::role_permissions::Entity")]
-    RolePermissions,
-  }
-
-  impl Related<super::user_roles::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::UserRoles.def()
-    }
-  }
-
-  impl Related<super::role_permissions::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::RolePermissions.def()
-    }
-  }
-
-  impl Related<super::users::Entity> for Entity {
-    fn to() -> RelationDef {
-      super::user_roles::Relation::User.def()
-    }
-
-    fn via() -> Option<RelationDef> {
-      Some(super::user_roles::Relation::Role.def().rev())
-    }
-  }
-
-  impl Related<super::permissions::Entity> for Entity {
-    fn to() -> RelationDef {
-      super::role_permissions::Relation::Permission.def()
-    }
-
-    fn via() -> Option<RelationDef> {
-      Some(super::role_permissions::Relation::Role.def().rev())
-    }
+    #[sea_orm(has_many)]
+    pub user_roles: HasMany<super::user_roles::Entity>,
+    #[sea_orm(has_many)]
+    pub role_permissions: HasMany<super::role_permissions::Entity>,
+    #[sea_orm(has_many, via = "user_roles")]
+    pub users: HasMany<super::users::Entity>,
+    #[sea_orm(has_many, via = "role_permissions")]
+    pub permissions: HasMany<super::permissions::Entity>,
   }
 
   impl ActiveModelBehavior for ActiveModel {}
@@ -128,6 +66,7 @@ pub mod permissions {
   use sea_orm::entity::prelude::*;
   use serde::{Deserialize, Serialize};
 
+  #[sea_orm::model]
   #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
   #[sea_orm(table_name = "permissions")]
   pub struct Model {
@@ -137,46 +76,14 @@ pub mod permissions {
     pub name: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-  }
-
-  #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-  pub enum Relation {
-    #[sea_orm(has_many = "super::role_permissions::Entity")]
-    RolePermissions,
-    #[sea_orm(has_many = "super::user_permissions::Entity")]
-    UserPermissions,
-  }
-
-  impl Related<super::role_permissions::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::RolePermissions.def()
-    }
-  }
-
-  impl Related<super::user_permissions::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::UserPermissions.def()
-    }
-  }
-
-  impl Related<super::roles::Entity> for Entity {
-    fn to() -> RelationDef {
-      super::role_permissions::Relation::Role.def()
-    }
-
-    fn via() -> Option<RelationDef> {
-      Some(super::role_permissions::Relation::Permission.def().rev())
-    }
-  }
-
-  impl Related<super::users::Entity> for Entity {
-    fn to() -> RelationDef {
-      super::user_permissions::Relation::User.def()
-    }
-
-    fn via() -> Option<RelationDef> {
-      Some(super::user_permissions::Relation::Permission.def().rev())
-    }
+    #[sea_orm(has_many)]
+    pub role_permissions: HasMany<super::role_permissions::Entity>,
+    #[sea_orm(has_many)]
+    pub user_permissions: HasMany<super::user_permissions::Entity>,
+    #[sea_orm(has_many, via = "role_permissions")]
+    pub roles: HasMany<super::roles::Entity>,
+    #[sea_orm(has_many, via = "user_permissions")]
+    pub users: HasMany<super::users::Entity>,
   }
 
   impl ActiveModelBehavior for ActiveModel {}
@@ -187,6 +94,7 @@ pub mod user_roles {
   use sea_orm::entity::prelude::*;
   use serde::{Deserialize, Serialize};
 
+  #[sea_orm::model]
   #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
   #[sea_orm(table_name = "user_roles")]
   pub struct Model {
@@ -196,36 +104,10 @@ pub mod user_roles {
     pub role_id: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-  }
-
-  #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-  pub enum Relation {
-    #[sea_orm(
-      belongs_to = "super::users::Entity",
-      from = "Column::UserId",
-      to = "super::users::Column::Id",
-      on_delete = "Cascade"
-    )]
-    User,
-    #[sea_orm(
-      belongs_to = "super::roles::Entity",
-      from = "Column::RoleId",
-      to = "super::roles::Column::Id",
-      on_delete = "Cascade"
-    )]
-    Role,
-  }
-
-  impl Related<super::users::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::User.def()
-    }
-  }
-
-  impl Related<super::roles::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::Role.def()
-    }
+    #[sea_orm(belongs_to, from = "user_id", to = "id", on_delete = "Cascade")]
+    pub user: BelongsTo<super::users::Entity>,
+    #[sea_orm(belongs_to, from = "role_id", to = "id", on_delete = "Cascade")]
+    pub role: BelongsTo<super::roles::Entity>,
   }
 
   impl ActiveModelBehavior for ActiveModel {}
@@ -236,6 +118,7 @@ pub mod role_permissions {
   use sea_orm::entity::prelude::*;
   use serde::{Deserialize, Serialize};
 
+  #[sea_orm::model]
   #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
   #[sea_orm(table_name = "role_permissions")]
   pub struct Model {
@@ -245,36 +128,10 @@ pub mod role_permissions {
     pub permission_id: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-  }
-
-  #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-  pub enum Relation {
-    #[sea_orm(
-      belongs_to = "super::roles::Entity",
-      from = "Column::RoleId",
-      to = "super::roles::Column::Id",
-      on_delete = "Cascade"
-    )]
-    Role,
-    #[sea_orm(
-      belongs_to = "super::permissions::Entity",
-      from = "Column::PermissionId",
-      to = "super::permissions::Column::Id",
-      on_delete = "Cascade"
-    )]
-    Permission,
-  }
-
-  impl Related<super::roles::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::Role.def()
-    }
-  }
-
-  impl Related<super::permissions::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::Permission.def()
-    }
+    #[sea_orm(belongs_to, from = "role_id", to = "id", on_delete = "Cascade")]
+    pub role: BelongsTo<super::roles::Entity>,
+    #[sea_orm(belongs_to, from = "permission_id", to = "id", on_delete = "Cascade")]
+    pub permission: BelongsTo<super::permissions::Entity>,
   }
 
   impl ActiveModelBehavior for ActiveModel {}
@@ -285,6 +142,7 @@ pub mod user_permissions {
   use sea_orm::entity::prelude::*;
   use serde::{Deserialize, Serialize};
 
+  #[sea_orm::model]
   #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
   #[sea_orm(table_name = "user_permissions")]
   pub struct Model {
@@ -294,36 +152,10 @@ pub mod user_permissions {
     pub permission_id: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-  }
-
-  #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-  pub enum Relation {
-    #[sea_orm(
-      belongs_to = "super::users::Entity",
-      from = "Column::UserId",
-      to = "super::users::Column::Id",
-      on_delete = "Cascade"
-    )]
-    User,
-    #[sea_orm(
-      belongs_to = "super::permissions::Entity",
-      from = "Column::PermissionId",
-      to = "super::permissions::Column::Id",
-      on_delete = "Cascade"
-    )]
-    Permission,
-  }
-
-  impl Related<super::users::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::User.def()
-    }
-  }
-
-  impl Related<super::permissions::Entity> for Entity {
-    fn to() -> RelationDef {
-      Relation::Permission.def()
-    }
+    #[sea_orm(belongs_to, from = "user_id", to = "id", on_delete = "Cascade")]
+    pub user: BelongsTo<super::users::Entity>,
+    #[sea_orm(belongs_to, from = "permission_id", to = "id", on_delete = "Cascade")]
+    pub permission: BelongsTo<super::permissions::Entity>,
   }
 
   impl ActiveModelBehavior for ActiveModel {}

@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod integration_tests {
   use crate::modules::health::handlers::{HealthResponse, LivenessResponse, ReadinessResponse};
+  use crate::test_util::TestPg;
   use crate::{AppState, health_router};
   use anyhow::Result;
   use axum::Router;
   use axum::http::StatusCode;
   use reqwest::Client;
   use serial_test::serial;
-  use sqlx_db_tester::TestPg;
   use tokio::net::TcpListener;
   use tokio::sync::oneshot;
 

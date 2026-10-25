@@ -373,6 +373,7 @@ mod util_tests {
 
 #[cfg(test)]
 mod integration_tests {
+  use crate::test_util::TestPg;
   use crate::{AppState, get_router};
   use anyhow::Result;
   use axum::Router;
@@ -380,7 +381,6 @@ mod integration_tests {
   use reqwest::Client;
   use serde_json::json;
   use serial_test::serial;
-  use sqlx_db_tester::TestPg;
   use tokio::net::TcpListener;
   use tokio::sync::oneshot;
   use tokio::time::Duration;

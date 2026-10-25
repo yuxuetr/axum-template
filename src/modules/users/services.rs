@@ -10,8 +10,9 @@ use crate::modules::users::entity::{
 
 use chrono::Utc;
 use sea_orm::{
-  ActiveModelTrait, ColumnTrait, EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
-  QuerySelect, RelationTrait, Set, TransactionTrait, sea_query::OnConflict,
+  ActiveModelTrait, ColumnTrait, EntityLoaderTrait, EntityTrait, JoinType, PaginatorTrait,
+  QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
+  sea_query::OnConflict,
 };
 
 use super::dto::PaginatedUsers;
@@ -72,7 +73,7 @@ impl AppState {
       )
       .join(
         JoinType::InnerJoin,
-        role_permissions::Relation::Role
+        role_permissions::Relation::Roles
           .def()
           .on_condition(|_left, _right| sea_orm::Condition::all()),
       )
@@ -228,35 +229,33 @@ impl AppState {
   }
 
   pub async fn get_user_by_id(&self, user_id: i32) -> Result<User, AppError> {
-    let user_info = users::Entity::find_by_id(user_id)
+    let user_ex = users::Entity::load()
+      .filter_by_id(user_id)
+      .with(roles::Entity)
+      .with(permissions::Entity)
       .one(&self.db)
       .await
       .map_err(|err| AppError::DatabaseError(err.to_string()))?
       .ok_or_else(|| AppError::NotFound(format!("User: {} not found", user_id)))?;
 
-    self.get_user_obj_by_user_info(user_info).await
+    Ok(Self::user_from_model_ex(user_ex))
   }
 
   pub async fn get_user_by_username(&self, username: &str) -> Result<User, AppError> {
-    let user_info = users::Entity::find()
-      .filter(users::Column::Username.eq(username))
+    let user_ex = users::Entity::load()
+      .filter(users::COLUMN.username.eq(username))
+      .with(roles::Entity)
+      .with(permissions::Entity)
       .one(&self.db)
       .await
       .map_err(|err| AppError::DatabaseError(err.to_string()))?
       .ok_or_else(|| AppError::NotFound(format!("User: {} not found", username)))?;
 
-    self.get_user_obj_by_user_info(user_info).await
+    Ok(Self::user_from_model_ex(user_ex))
   }
 
   pub async fn verify_user_by_username(&self, username: &str) -> Result<User, AppError> {
-    let user_info = users::Entity::find()
-      .filter(users::Column::Username.eq(username))
-      .one(&self.db)
-      .await
-      .map_err(|err| AppError::DatabaseError(err.to_string()))?
-      .ok_or_else(|| AppError::NotFound(format!("User: {} not found", username)))?;
-
-    self.get_user_obj_by_user_info(user_info).await
+    self.get_user_by_username(username).await
   }
 
   pub async fn get_users(&self, limit: i64, offset: i64) -> Result<PaginatedUsers, AppError> {
@@ -370,6 +369,23 @@ impl AppState {
       .collect();
 
     Ok(PaginatedUsers { users, total_count })
+  }
+
+  fn user_from_model_ex(user_ex: users::ModelEx) -> User {
+    let roles: Vec<Role> = user_ex.roles.into_iter().map(Role::from).collect();
+    let permissions: Vec<Permission> = user_ex
+      .permissions
+      .into_iter()
+      .map(Permission::from)
+      .collect();
+    let user_info = UserInfo {
+      id: user_ex.id,
+      username: user_ex.username,
+      password: user_ex.password,
+      created_at: user_ex.created_at,
+      updated_at: user_ex.updated_at,
+    };
+    User::new(user_info, roles, permissions)
   }
 
   async fn get_user_obj_by_user_info(&self, user_info: UserInfo) -> Result<User, AppError> {

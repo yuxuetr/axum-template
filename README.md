@@ -3,7 +3,7 @@
 本项目实践使用 Axum 搭建后台服务，并提供 **三个分支** 分别演示 Rust 生态主流的三种异步数据库访问方案（共享完全一致的 REST API、JWT + RBAC 权限体系与数据库表结构）：
 
 - **`main` 分支（默认）**: 使用 **SQLx v0.8.6** + PostgreSQL（原生 SQL、轻量直观）
-- **`seaorm` 分支**: 使用 **SeaORM v1.1** + PostgreSQL（功能完备的 ActiveRecord / 关系型异步 ORM）
+- **`seaorm` 分支**: 使用 **SeaORM v2.0** + PostgreSQL（功能完备的 ActiveRecord / 关系型异步 ORM，基于 `sqlx v0.9` 与 `#[sea_orm::model]` 新一代实体宏）
 - **`toasty` 分支**: 使用 **Toasty v0.11** + PostgreSQL（Tokio 官方生态的声明式异步 ORM）
 
 此外项目还包括:
@@ -29,11 +29,11 @@ git checkout toasty  # Toasty 版本
 
 | 维度 | `main` 分支 (SQLx) | `seaorm` 分支 (SeaORM) | `toasty` 分支 (Toasty) |
 | :--- | :--- | :--- | :--- |
-| **核心依赖** | `sqlx = "0.8.6"` | `sea-orm = "1.1"` | `toasty = "0.11.0"` + `jiff = "0.2"` |
-| **编程范式** | 原生 SQL + 行映射 (`FromRow`) | 实体关系映射 (`Entity` + `ActiveModel`) | 声明式模型派生 (`#[derive(toasty::Model)]`) |
+| **核心依赖** | `sqlx = "0.8.6"` | `sea-orm = "2.0"` (`sqlx 0.9`) | `toasty = "0.11.0"` + `jiff = "0.2"` |
+| **编程范式** | 原生 SQL + 行映射 (`FromRow`) | 新一代实体宏 (`#[sea_orm::model]` + `ActiveModel`) | 声明式模型派生 (`#[derive(toasty::Model)]`) |
 | **状态连接类型** | `sqlx::PgPool` | `sea_orm::DatabaseConnection` | `toasty::Db` |
 | **时间类型** | `chrono::DateTime<Utc>` | `chrono::DateTime<Utc>` | `jiff::Timestamp` |
-| **测试隔离方案** | `sqlx-db-tester::TestPg` | `sqlx-db-tester::TestPg` + `SqlxPostgresConnector` | 内置 `test_util::TestPg` 临时库生命周期管理 |
+| **测试隔离方案** | `sqlx-db-tester::TestPg` | 内置 `test_util::TestPg` 临时库生命周期管理 | 内置 `test_util::TestPg` 临时库生命周期管理 |
 | **适用场景** | 偏好手写 SQL、极致掌控复杂查询与 CTE | 复杂关系模型、动态条件构建、企业级 CRUD | 追求极简模型定义、强类型链式构建器与自动时间戳维护 |
 
 ### 1. `main` 分支：SQLx 使用方式
@@ -88,7 +88,7 @@ git checkout toasty  # Toasty 版本
 
 - **依赖配置 (`Cargo.toml`)**：
   ```toml
-  sea-orm = { version = "1.1", features = [
+  sea-orm = { version = "2.0", features = [
     "sqlx-postgres",
     "runtime-tokio-rustls",
     "macros",
@@ -101,11 +101,14 @@ git checkout toasty  # Toasty 版本
   let state = AppState::new(config, db);
   ```
 - **实体与关系定义 (`src/modules/users/entity.rs`)**：
-  通过 `#[derive(DeriveEntityModel)]` 定义表模型，并实现 `Related<R>` 描述多对多关联（如 `users <-> user_roles <-> roles`）：
+  采用 SeaORM 2.0 全新的 `#[sea_orm::model]` 属性宏，直接在 `Model` 结构体中通过 `HasMany<E>`、`BelongsTo<E>` 声明一对多与多对多关联（如 `users <-> user_roles <-> roles`），自动推导生成 `Relation` 枚举与 `Related<R>` Trait 实现，无需手写样板代码：
   ```rust
-  pub mod users_entity {
+  pub mod users {
+    use chrono::{DateTime, Utc};
     use sea_orm::entity::prelude::*;
+    use serde::{Deserialize, Serialize};
 
+    #[sea_orm::model]
     #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
     #[sea_orm(table_name = "users")]
     pub struct Model {
@@ -115,21 +118,39 @@ git checkout toasty  # Toasty 版本
       pub username: String,
       #[serde(skip)]
       pub password: String,
-      pub created_at: DateTimeUtc,
-      pub updated_at: DateTimeUtc,
+      pub created_at: DateTime<Utc>,
+      pub updated_at: DateTime<Utc>,
+      #[sea_orm(has_many)]
+      pub user_roles: HasMany<super::user_roles::Entity>,
+      #[sea_orm(has_many)]
+      pub user_permissions: HasMany<super::user_permissions::Entity>,
+      #[sea_orm(has_many, via = "user_roles")]
+      pub roles: HasMany<super::roles::Entity>,
+      #[sea_orm(has_many, via = "user_permissions")]
+      pub permissions: HasMany<super::permissions::Entity>,
     }
-    // Relation 与 Related<roles_entity::Entity> 实现...
+
+    impl ActiveModelBehavior for ActiveModel {}
   }
   ```
 - **查询与事务 (`src/modules/users/services.rs`)**：
-  使用 `EntityTrait`、`QueryFilter`、`PaginatorTrait` 进行类型安全查询，使用 `ActiveModel` + `TransactionTrait` 处理写入与事务：
+  使用 SeaORM 2.0 全新的智能实体加载器 `Entity::load().with(...)` 一步加载多对多关联实体（自动使用 DataLoader 消除 N+1 查询），结合类型安全列 `COLUMN` 与 `ActiveModel` + `TransactionTrait` 处理写入与事务：
   ```rust
+  // 1. SeaORM 2.0 Smart Entity Loader 一步加载用户及其关联角色与权限
+  let user_ex = users::Entity::load()
+    .filter_by_id(user_id)
+    .with(roles::Entity)
+    .with(permissions::Entity)
+    .one(&self.db)
+    .await?;
+
+  // 2. ActiveModel + 事务写入
   let txn = self.db.begin().await?;
-  let user_info = users_entity::ActiveModel {
-    username: ActiveValue::Set(input.username.clone()),
-    password: ActiveValue::Set(hashed_password),
-    created_at: ActiveValue::Set(now),
-    updated_at: ActiveValue::Set(now),
+  let user_info = users::ActiveModel {
+    username: Set(input.username.clone()),
+    password: Set(hashed_password),
+    created_at: Set(now),
+    updated_at: Set(now),
     ..Default::default()
   }
   .insert(&txn)
@@ -275,7 +296,7 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://user:password@localhost/db
 ## 一点经验
 
 1. 如果测试过多或者复杂可能要给测试进行排序，防止并发导致错误，尤其在集成测试中，可以使用`serial_test`
-2. 为了便于测试时创建独立数据库、测试完自动删除数据库，`main` 与 `seaorm` 分支使用 `sqlx-db-tester`，`toasty` 分支在 `test_util::TestPg` 中内置了基于 `toasty` 的临时数据库创建、迁移与自动销毁机制
+2. 为了便于测试时创建独立数据库、测试完自动删除数据库，`main` 分支使用 `sqlx-db-tester`，`seaorm` 与 `toasty` 分支在 `test_util::TestPg` 中内置了基于各自 ORM 连接的临时数据库创建、迁移与自动销毁机制
 3. 为了方便数据库操作，在全局状态里包含**全局配置**和**数据库连接**，并且可以将所有的`services.rs`关于数据库的操作都实现在全局状态下，便于操作
 4. 集成测试如果使用`reqwest`作为请求的客户端的话，在代码提交 Github Actions 时，
    会由于 reqwest 默认依赖 OpenSSL 导致容器崩溃，可以参考我的`Cargo.toml`配置，
@@ -369,7 +390,7 @@ pub async fn get_users_handler(
 - **Axum**: v0.8 - 高性能异步 Web 框架
 - **数据库访问层（多分支可选）**:
   - **SQLx**: v0.8.6 (`main` 分支) - 编译时安全的异步 SQL 工具包
-  - **SeaORM**: v1.1 (`seaorm` 分支) - 功能丰富的异步关系型 ORM
+  - **SeaORM**: v2.0 (`seaorm` 分支) - 功能丰富的异步关系型 ORM
   - **Toasty**: v0.11 (`toasty` 分支) - Tokio 生态声明式异步 ORM
 - **PostgreSQL**: 可靠的关系型数据库
 - **jsonwebtoken**: 基于 Ed25519 的 JWT 签名/验证（纯 Rust 实现，无 C 依赖）
