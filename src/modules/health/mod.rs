@@ -1,4 +1,6 @@
 pub mod handlers;
+#[cfg(test)]
+mod tests;
 
 use crate::AppState;
 use axum::Router;
