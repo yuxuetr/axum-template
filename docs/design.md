@@ -31,10 +31,10 @@ database libraries:
    - Stores `sqlx::PgPool` in `AppStateInner`.
    - Maps database rows using `#[derive(sqlx::FromRow)]` in `src/modules/users/entity.rs`.
    - Executes parameterized SQL queries and transactions in `src/modules/users/services.rs`.
-2. **`seaorm` (`sea-orm`)**:
+2. **`seaorm` (`sea-orm 2.0`)**:
    - Stores `sea_orm::DatabaseConnection` in `AppStateInner`.
-   - Defines `DeriveEntityModel` entities, `Relation` enums, and `Related` implementations for `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, and `user_permissions`.
-   - Uses `EntityTrait`, `QueryFilter`, `PaginatorTrait`, `ActiveModel`, and `TransactionTrait` in `src/modules/users/services.rs`.
+   - Defines compact SeaORM 2.0 `#[sea_orm::model]` entities with inline `HasMany<E>` and `BelongsTo<E>` relation fields for `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, and `user_permissions`.
+   - Uses SeaORM 2.0's Smart Entity Loader (`Entity::load().with(...)`), typed `COLUMN` expressions, `EntityTrait`, `QueryFilter`, `PaginatorTrait`, `ActiveModel`, and `TransactionTrait` in `src/modules/users/services.rs`, plus `test_util::TestPg` for isolated test database setup.
 3. **`toasty` (`toasty`)**:
    - Stores `toasty::Db` in `AppStateInner`, registered via `toasty::models!(crate::*)`.
    - Defines declarative `#[derive(toasty::Model)]` models with `#[key]`, `#[auto]`, `#[unique]`, and `#[index]` attributes in `src/modules/users/entity.rs`.
