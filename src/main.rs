@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
   let state = AppState::init_state().await?;
   let app = get_router(state.clone()).await?;
 
-  let addr = format!("0.0.0.0:{}", &state.config.server.port);
+  let addr = format!("0.0.0.0:{}", state.config.server.port);
   let listener = TcpListener::bind(&addr).await?;
   info!("Listening on: {}", addr);
 

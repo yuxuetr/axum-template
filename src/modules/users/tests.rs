@@ -167,7 +167,7 @@ mod integration_tests {
     // delete user
     let response = client
       .delete(format!("http://{}/users/{}", addr, 3))
-      .header("Authorization", format!("Bearer {}", &token))
+      .header("Authorization", format!("Bearer {}", token))
       .send()
       .await?;
     assert_eq!(response.status(), StatusCode::OK);
